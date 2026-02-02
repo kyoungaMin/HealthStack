@@ -1,0 +1,271 @@
+
+---
+
+## 4) `docs/erd/schema.dbml`
+
+> DBML은 “실제 DB 기준”이라 **가장 정확한 기준 파일**로 유지하는 걸 추천해.  
+> 아래는 우리가 합의한 스키마(마이그레이션 반영)를 기준으로 정리한 버전이야.
+
+```dbml
+Project health_stack {
+  database_type: "PostgreSQL"
+  Note: "Supabase DB schema for Health Stack service (documented ERD)"
+}
+
+Table auth_users {
+  id uuid [pk]
+}
+
+Table user_profiles {
+  user_id uuid [pk, ref: > auth_users.id]
+  display_name text
+  locale text
+  timezone text
+  wake_time time
+  breakfast_time time
+  lunch_time time
+  dinner_time time
+  bed_time time
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table user_preferences {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  preferred_categories text[]
+  excluded_ingredients text[]
+  health_conditions jsonb
+  notification_enabled boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table foods_master {
+  rep_code text [pk]
+  rep_name text
+  created_at timestamptz
+}
+
+Table disease_master {
+  id bigint [pk]
+  disease text
+  disease_read text
+  disease_alias text
+  disease_alias_read text
+  modern_disease text
+  created_at timestamptz
+}
+
+Table catalog_drugs {
+  id bigint [pk]
+  name text
+  generic_name text
+  atc_code text
+  source text
+  updated_at timestamptz
+}
+
+Table catalog_supplements {
+  id bigint [pk]
+  name text
+  ingredient text
+  category text
+  updated_at timestamptz
+}
+
+Table user_intake_items {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  item_type text
+  catalog_drug_id bigint [ref: > catalog_drugs.id]
+  catalog_supplement_id bigint [ref: > catalog_supplements.id]
+  rep_code text [ref: > foods_master.rep_code]
+  display_name text
+  dose_text text
+  route text
+  active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table intake_schedules {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  intake_item_id bigint [ref: > user_intake_items.id]
+  pattern text
+  days_of_week int[]
+  time_anchor text
+  custom_time time
+  offset_minutes int
+  rules jsonb
+  is_enabled boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table intake_logs {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  schedule_id bigint [ref: > intake_schedules.id]
+  scheduled_at timestamptz
+  taken_at timestamptz
+  status text
+  note text
+  created_at timestamptz
+}
+
+Table user_push_tokens {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  platform text
+  token text
+  enabled boolean
+  last_seen_at timestamptz
+  created_at timestamptz
+}
+
+Table reports {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  report_type text
+  title text
+  inputs jsonb
+  content_md text
+  pdf_path text
+  status text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table symptom_ingredient_map {
+  id bigint [pk]
+  symptom_id bigint [ref: > disease_master.id]
+  rep_code text [ref: > foods_master.rep_code]
+  direction text
+  rationale_ko text
+  priority int
+  created_at timestamptz
+}
+
+Table recipes {
+  id bigint [pk]
+  title text
+  description text
+  ingredients jsonb
+  steps jsonb
+  tags text[]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table symptom_recipe_map {
+  id bigint [pk]
+  symptom_id bigint [ref: > disease_master.id]
+  recipe_id bigint [ref: > recipes.id]
+  meal_slot text
+  priority int
+}
+
+Table content_videos {
+  id bigint [pk]
+  provider text
+  video_id text
+  title text
+  channel text
+  tags text[]
+  created_at timestamptz
+}
+
+Table symptom_video_map {
+  id bigint [pk]
+  symptom_id bigint [ref: > disease_master.id]
+  video_pk bigint [ref: > content_videos.id]
+  priority int
+}
+
+Table ingredient_product_links {
+  id bigint [pk]
+  rep_code text [ref: > foods_master.rep_code]
+  provider text
+  query_template text
+  disclaimer_ko text
+  created_at timestamptz
+}
+
+Table interaction_facts {
+  id bigint [pk]
+  a_type text
+  a_ref text
+  b_type text
+  b_ref text
+  severity text
+  evidence_level text
+  mechanism text
+  summary_ko text
+  action_ko text
+  sources jsonb
+  pmids text[]
+  updated_at timestamptz
+}
+
+Table pubmed_papers {
+  pmid text [pk]
+  title text
+  abstract text
+  journal text
+  pub_year int
+  publication_types text[]
+  mesh_terms text[]
+  url text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table pubmed_embeddings {
+  pmid text [ref: > pubmed_papers.pmid]
+  chunk_index int
+  content text
+  embedding vector
+  created_at timestamptz
+
+  indexes {
+    (pmid, chunk_index) [pk]
+  }
+}
+
+Table plans {
+  id bigint [pk]
+  code text
+  name text
+  price int
+  currency text
+  features jsonb
+  is_active boolean
+}
+
+Table subscriptions {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  plan_code text [ref: > plans.code]
+  status text
+  current_period_start timestamptz
+  current_period_end timestamptz
+  provider text
+  provider_sub_id text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table payments {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  amount int
+  currency text
+  provider text
+  provider_payment_id text
+  payment_type text
+  reference_id bigint
+  status text
+  created_at timestamptz
+}

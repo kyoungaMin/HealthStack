@@ -1,0 +1,239 @@
+{
+  "meta": {
+    "generated_at": "2026-01-31T14:05:20",
+    "timezone": "Asia/Seoul",
+    "note": "Sample responses for MVP. Replace ids/timestamps. Do not treat medical content as advice; include disclaimers in UI."
+  },
+  "auth": {
+    "login_success": {
+      "user_id": "usr_2f9a1b",
+      "provider": "google",
+      "created_at": "2026-01-31T10:00:00+09:00",
+      "session": {
+        "access_token": "…",
+        "expires_in": 3600
+      }
+    }
+  },
+  "intake_items": {
+    "list": {
+      "items": [
+        {
+          "item_id": "itm_1001",
+          "type": "drug",
+          "name": "혈압약(예시)",
+          "ingredient": "성분 미입력",
+          "timing_pref": "after_meal",
+          "notes": "사용자 입력 기반",
+          "created_at": "2026-01-31T10:05:00+09:00"
+        },
+        {
+          "item_id": "itm_2001",
+          "type": "supplement",
+          "name": "마그네슘",
+          "ingredient": "magnesium",
+          "timing_pref": "bedtime",
+          "notes": "",
+          "created_at": "2026-01-31T10:05:20+09:00"
+        }
+      ]
+    },
+    "create": {
+      "item_id": "itm_3001",
+      "type": "food",
+      "name": "자몽",
+      "ingredient": "grapefruit",
+      "timing_pref": "any",
+      "created_at": "2026-01-31T10:06:00+09:00"
+    }
+  },
+  "schedules": {
+    "generate": {
+      "schedule_id": "sch_9c11",
+      "day_profile": {
+        "wake": "07:00",
+        "breakfast": "08:00",
+        "lunch": "12:30",
+        "dinner": "18:30",
+        "sleep": "23:00"
+      },
+      "timeline": [
+        {
+          "time": "08:30",
+          "items": [
+            "itm_1001"
+          ],
+          "note": "식후 복용(아침 기준)"
+        },
+        {
+          "time": "22:30",
+          "items": [
+            "itm_2001"
+          ],
+          "note": "취침 전"
+        }
+      ],
+      "conflicts": [
+        {
+          "items_pair": [
+            "itm_1001",
+            "itm_2001"
+          ],
+          "reason": "개인차에 따라 어지러움/저혈압 증상이 나타날 수 있음",
+          "suggestion_note": "불편감이 있으면 시간대를 조정하거나 의료진과 상의하는 편이 좋아요."
+        }
+      ],
+      "created_at": "2026-01-31T10:07:00+09:00"
+    }
+  },
+  "intake_today": {
+    "today": {
+      "date": "2026-01-31",
+      "timeline": [
+        {
+          "time": "08:30",
+          "items": [
+            {
+              "item_id": "itm_1001",
+              "name": "혈압약(예시)"
+            }
+          ],
+          "status": "pending"
+        },
+        {
+          "time": "22:30",
+          "items": [
+            {
+              "item_id": "itm_2001",
+              "name": "마그네슘"
+            }
+          ],
+          "status": "pending"
+        }
+      ]
+    }
+  },
+  "interactions": {
+    "check": {
+      "summary": "현재 조합은 큰 문제 보고가 많지 않지만, 개인차에 따라 주의가 필요할 수 있어요.",
+      "pairs": [
+        {
+          "a": {
+            "item_id": "itm_1001",
+            "name": "혈압약(예시)",
+            "type": "drug"
+          },
+          "b": {
+            "item_id": "itm_2001",
+            "name": "마그네슘",
+            "type": "supplement"
+          },
+          "risk": "yellow",
+          "label": "가능성 있음",
+          "why": "일부 경우 혈압 저하/어지러움 가능성",
+          "watch_for": [
+            "어지러움",
+            "기립 시 불편감"
+          ],
+          "evidence_level": "possible",
+          "source_keys": [
+            "ifc_demo_001"
+          ]
+        }
+      ],
+      "disclaimer": "이 결과는 의학적 조언이 아니며, 우려되거나 증상이 있으면 의료진과 상의하세요."
+    }
+  },
+  "mealplan": {
+    "today": {
+      "date": "2026-01-31",
+      "direction": "오늘은 자극을 줄이고 염분을 낮춘 쪽으로 가볍게 구성해보세요.",
+      "meals": {
+        "breakfast": [
+          "오트밀 + 바나나",
+          "저염 달걀찜"
+        ],
+        "lunch": [
+          "현미밥 + 채소가 많은 국/탕(저염)",
+          "두부구이"
+        ],
+        "dinner": [
+          "닭가슴살/흰살생선 + 샐러드",
+          "따뜻한 차(카페인 낮게)"
+        ]
+      },
+      "avoid": [
+        "과도한 염분 음식",
+        "자극적인 매운 음식",
+        "야식"
+      ],
+      "med_note": "복용 중인 항목이 있다면 새로운 식품을 과다하게 늘리기보다는 천천히 조절하는 편이 좋아요.",
+      "evidence": {
+        "level": "possible",
+        "label": "🟡 가능성 있음"
+      },
+      "disclaimer": "치료 목적이 아닌 생활 관리 참고 정보입니다."
+    }
+  },
+  "symptoms_bundle": {
+    "bundle": {
+      "symptom_id": "sym_sleep_quality",
+      "symptom_name": "수면 질 저하(사용자 입력)",
+      "ingredients": [
+        {
+          "name": "대추(예시)",
+          "traditional_note": "전통 문헌에서 생활 관리 맥락으로 언급",
+          "caution": "당 섭취 조절 필요 시 주의"
+        },
+        {
+          "name": "따뜻한 곡물차(예시)",
+          "traditional_note": "자극을 줄이는 선택지로 제안 가능",
+          "caution": "카페인 함유 여부 확인"
+        }
+      ],
+      "videos": [
+        {
+          "title": "잠들기 전 루틴 만들기(예시)",
+          "platform": "youtube",
+          "url": "https://example.com/video1"
+        },
+        {
+          "title": "저염 식단 팁(예시)",
+          "platform": "youtube",
+          "url": "https://example.com/video2"
+        }
+      ],
+      "shop_links": [
+        {
+          "ingredient": "대추",
+          "note": "재료 단위 링크(비교/추천 없음)",
+          "url": "https://example.com/shop1"
+        }
+      ],
+      "disclaimer": "전통 기반 생활 가이드이며 의학적 조언이 아닙니다."
+    }
+  },
+  "reports": {
+    "generate": {
+      "report_id": "rpt_7711",
+      "type": "safety_combo",
+      "status": "ready",
+      "download_url": "https://example.com/reports/rpt_7711.pdf",
+      "generated_at": "2026-01-31T10:10:00+09:00",
+      "snapshot": {
+        "items_count": 2,
+        "schedule_id": "sch_9c11",
+        "interaction_pairs": 1
+      },
+      "disclaimer": "이 리포트는 정보 이해 및 판단 보조 목적이며 의료적 조언이 아닙니다."
+    }
+  },
+  "billing": {
+    "subscribe": {
+      "plan": "premium",
+      "status": "active",
+      "renewal_date": "2026-02-28",
+      "message": "구독이 활성화되었습니다."
+    }
+  }
+}

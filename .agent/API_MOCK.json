@@ -1,0 +1,48 @@
+{
+  "GET /interactions/check": {
+    "request": {
+      "intake_items": [
+        {
+          "type": "drug",
+          "name": "혈압약"
+        },
+        {
+          "type": "supplement",
+          "name": "마그네슘"
+        }
+      ]
+    },
+    "response": {
+      "summary": "일부 경우 혈압 저하 가능성이 보고되었습니다.",
+      "results": [
+        {
+          "pair": "혈압약 x 마그네슘",
+          "risk": "YELLOW",
+          "reason": "혈압 저하 가능성",
+          "note": "어지러움이 있으면 의료진 상담 권장",
+          "evidence": "possible"
+        }
+      ]
+    }
+  },
+  "POST /schedules": {
+    "response": {
+      "timeline": [
+        {
+          "time": "08:30",
+          "items": [
+            "혈압약"
+          ],
+          "note": "식후"
+        },
+        {
+          "time": "22:30",
+          "items": [
+            "마그네슘"
+          ],
+          "note": "취침 전"
+        }
+      ]
+    }
+  }
+}

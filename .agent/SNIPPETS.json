@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "note": "tool-agnostic snippet templates; paste SYSTEM into system/instruction, paste USER into chat input",
+  "snippets": [
+    {
+      "name": "Guard Gate (product-philosophy-guard)",
+      "system_agent_file": "agents/01_product-philosophy-guard.md",
+      "user_template": "다음 기능/문구가 의료행위(치료/처방/추천)처럼 보이는지 점검해줘.\n\n[기능 설명]\n- 기능 목적:\n- 사용자 행동:\n- 결과 화면:\n\n[화면 문구]\n- 제목:\n- 설명:\n- 버튼/알림 문구:"
+    },
+    {
+      "name": "Interaction Check (interaction-analysis)",
+      "system_agent_file": "agents/03_interaction-analysis.md",
+      "user_template_json": {
+        "intake_items": [
+          {
+            "type": "drug",
+            "name": "약 이름/성분"
+          },
+          {
+            "type": "supplement",
+            "name": "건기식/성분"
+          },
+          {
+            "type": "food",
+            "name": "음식/재료"
+          }
+        ],
+        "user_conditions": [
+          "선택: 임신/고령/간질환/신장질환/질환키워드"
+        ]
+      }
+    },
+    {
+      "name": "Schedule Builder (intake-schedule-optimizer)",
+      "system_agent_file": "agents/06_intake-schedule-optimizer.md",
+      "user_template_json": {
+        "items": [
+          {
+            "name": "항목명",
+            "type": "drug|supplement",
+            "timing_pref": "fasting|after_meal|bedtime|any",
+            "interval_rules": [
+              {
+                "with": "상대 항목명",
+                "hours": 2
+              }
+            ]
+          }
+        ],
+        "day_profile": {
+          "wake": "07:00",
+          "breakfast": "08:00",
+          "lunch": "12:30",
+          "dinner": "18:30",
+          "sleep": "23:00"
+        },
+        "constraints": {
+          "max_notifications_per_day": 6
+        }
+      }
+    },
+    {
+      "name": "Release Gate (qa-risk-audit)",
+      "system_agent_file": "agents/11_qa-risk-audit.md",
+      "user_template": "다음 릴리즈 후보의 화면/알림/리포트 문구를 의료·법적 리스크 관점에서 PASS/FAIL로 점검해줘.\n특히 (치료/처방처럼 보이는 표현), (근거 표기 누락), (🔴 상담 권장 누락)을 최우선으로 봐줘.\n\n[화면/플로우]\n- ...\n\n[문구 전체]\n- ..."
+    }
+  ],
+  "PRD_V1": {
+    "title": "PRD (1-page)",
+    "body": "# {feature_name}\n\n## 1) Problem\n- \n\n## 2) Target Users\n- \n\n## 3) Value Proposition\n- \n\n## 4) Scope (In)\n- \n\n## 5) Out of Scope\n- \n\n## 6) User Flow (Happy Path)\n1. \n\n## 7) Success Metrics\n- North Star: \n- Input Metrics: \n\n## 8) Risks & Guardrails\n- \n\n## 9) Open Questions\n- \n"
+  },
+  "API_SPEC_V1": {
+    "title": "API Spec",
+    "body": "# API Spec: {service_or_feature}\n\n## Overview\n- Auth: {auth_type}\n- Base URL: {base_url}\n- Version: {version}\n\n## Endpoints\n### {METHOD} {PATH}\n**Purpose**: \n\n**Request**\n- Headers:\n  - Authorization: \n- Query:\n```json\n{}\n```\n- Body:\n```json\n{}\n```\n\n**Response 200**\n```json\n{}\n```\n\n**Errors**\n- 400: \n- 401: \n- 403: \n- 404: \n- 429: \n- 500: \n\n## Conventions\n- Error shape:\n```json\n{\"error\":{\"code\":\"\",\"message\":\"\",\"details\":{}}}\n```\n- Pagination:\n```json\n{\"items\":[],\"next_cursor\":null}\n```\n"
+  },
+  "DB_TABLE_V1": {
+    "title": "DB Table Spec",
+    "body": "# Table: {table_name}\n\n## Purpose\n- \n\n## Columns\n| Column | Type | Nullable | Default | Notes |\n|---|---|---:|---|---|\n| id | uuid | no | gen_random_uuid() | PK |\n\n## Indexes\n- \n\n## RLS Policy Notes (Supabase)\n- Select: owner-only\n- Insert: owner-only\n- Update: owner-only\n- Delete: owner-only\n\n## Example Queries\n```sql\n-- \n```\n"
+  },
+  "QA_GWT_V1": {
+    "title": "QA Test Cases (GWT)",
+    "body": "# QA: {feature_name}\n\n## Checklist\n- [ ] Empty state\n- [ ] Loading state\n- [ ] Error state\n- [ ] Permission / RLS\n- [ ] Rate limit\n- [ ] Duplicate / idempotency\n- [ ] Localization (if any)\n\n## Test Cases (Given-When-Then)\n1) **[P0]** Given {condition}, When {action}, Then {expected}\n2) **[P1]** Given , When , Then \n\n## Edge Cases\n- \n\n## Risk Notes\n- \n"
+  },
+  "NOTIFICATION_COPY_V1": {
+    "title": "Notification Copy Pack",
+    "body": "# Notification Copy: {feature_name}\n\n## Variables\n- {user_name}\n- {time}\n- {item}\n- {cta}\n\n## Push (<= 60 chars)\n- \n- \n\n## Push (<= 120 chars)\n- \n- \n\n## In-app banner\n- Title: \n- Body: \n\n## Email\n- Subject: \n- Preheader: \n- Body:\n  - \n\n## Tone Options\n- Friendly:\n- Neutral:\n- Serious:\n"
+  },
+  "PDF_DATA_CONTRACT_V1": {
+    "title": "PDF Data Contract",
+    "body": "# PDF Data Contract: {report_name}\n\n## Sections\n1) Executive Summary\n2) Intake / Compliance\n3) Symptoms & Insights\n4) Recommendations\n5) Warnings / Disclaimers\n\n## Input Schema (Top-level)\n```json\n{\n  \"report_meta\": {\n    \"generated_at\": \"\",\n    \"user\": {\"id\":\"\",\"age\":0,\"sex\":\"\"}\n  },\n  \"sections\": {\n    \"executive_summary\": {},\n    \"intake\": {},\n    \"symptoms\": {},\n    \"recommendations\": {},\n    \"warnings\": {}\n  }\n}\n```\n\n## Rendering Rules\n- Page layout: A4\n- Charts: (if any)\n- Typography: (if any)\n- Safety language: 과장 금지, 의학적 조언 대체 불가 문구 포함\n\n## Sample Payload\n```json\n{}\n```\n"
+  }
+}
