@@ -1,200 +1,247 @@
-# Health Stack (내몸설명서)
+# Health Stack
 
-> **전통 지식 × 현대 의학 × AI**를 결합한 개인 맞춤형 건강 이해·관리 플랫폼
+> **내 몸에 들어가는 모든 것의 설명서**
 
----
-
-## 1. 프로젝트 개요
-
-**Health Stack (브랜드명: 내몸설명서)** 는 사용자가 자신의 몸 상태, 증상, 복용 중인 약·건강기능식품, 음식 섭취 정보를 **하나의 스택(Stack)** 으로 관리하고, 이를 기반으로 **이해 가능한 설명 + 실행 가능한 추천**을 제공하는 AI 헬스 인텔리전스 프로젝트입니다.
-
-이 프로젝트는 단순 추천 앱이 아니라,
-
-* 병원 진료 전·후 참고 가능한 **개인 건강 백서(Personal Health Whitepaper)**
-* 약·영양제·음식·생활습관을 연결한 **의사결정 보조 시스템**
-  을 목표로 합니다.
+약 · 건강기능식품 · 음식을 함께 보고, 이해하고, 관리합니다.
 
 ---
 
-## 2. 문제 정의 (Why)
+## 📌 서비스 한 문장 정의
 
-### 기존 헬스/영양 서비스의 한계
+> Health Stack은 사용자가 입력한 **증상과 처방전**을 바탕으로,  
+> 약·건강정보·동의보감·음식·지역 식당·판매처를 하나의 맥락으로 연결해  
+> **"내 몸에 지금 필요한 선택지"**를 설명해주는 서비스입니다.
 
-* ❌ 정보가 파편화됨 (약, 영양제, 음식, 논문, 영상이 따로 존재)
-* ❌ 전문가 언어 위주 → 일반 사용자는 이해하기 어려움
-* ❌ 개인의 실제 복용/섭취/증상 이력과 연결되지 않음
-* ❌ "먹어도 되는지 / 같이 먹어도 되는지"에 대한 맥락 부족
-
-### Health Stack의 관점
-
-> **"몸을 이해하지 못하면, 관리도 할 수 없다"**
-
-→ Health Stack은 **설명 가능한 건강 관리**를 핵심 가치로 둡니다.
+- 치료 ❌
+- 처방 변경 ❌
+- 과장 ❌
+- **이해 + 판단 보조 + 생활 선택 가이드 ⭕**
 
 ---
 
-## 3. 핵심 컨셉 (What)
+## 🎯 핵심 차별점
 
-### 🔹 Health Stack이란?
-
-사용자의 건강과 관련된 모든 요소를 **시간축 기반의 스택 구조**로 관리합니다.
-
-* 증상 (Symptoms)
-* 질병 이력 (Conditions)
-* 복용 약 (Drugs)
-* 건강기능식품 (Supplements)
-* 음식 / 식재료 (Foods)
-* 콘텐츠 근거 (동의보감, PubMed, 논문, 영상)
-
-이 스택을 기반으로 AI가 **연결·해석·설명**합니다.
+| 기존 서비스 | Health Stack |
+|------------|--------------|
+| 정보 나열 | 맥락 기반 설명 |
+| 약 / 음식 분리 | 하나의 스택으로 통합 |
+| 광고 중심 | 근거·출처 중심 |
+| 단기 조회 | 누적 관리 |
 
 ---
 
-## 4. 주요 기능 (Features)
+## 📱 사용자 입력 방식
 
-### 4.1 증상 기반 이해 & 추천
+### A. 증상만 입력
+```
+"속이 더부룩해요" / "잠을 잘 못 자요" / "손발이 차요"
+```
+→ 생활 관리 관점의 정보 제공
 
-* 사용자가 입력한 증상을 **현대어로 해석**
-* 동의보감 + 현대 의학(RAG) 기반 설명
-* 도움이 될 수 있는 음식 / 피해야 할 음식 제안
+### B. 처방전만 입력
+```
+처방전 사진 업로드 / 약 이름 직접 입력
+```
+→ 지금 먹는 약 이해
 
-### 4.2 복용 스택 관리
-
-* 현재 복용 중인 약·영양제 등록
-* 복용 목적, 기간, 이행률 관리
-* **같이 먹어도 되는지 / 피해야 하는 조합** 자동 안내
-
-### 4.3 콘텐츠 큐레이션
-
-* 증상·식재료 기반 추천 영상 (YouTube 등)
-* 논문/근거 요약 (PubMed)
-* 일반 사용자도 이해 가능한 언어로 재작성
-
-### 4.4 개인 맞춤 PDF 리포트
-
-* 월간/분기별 **내몸설명서 PDF 생성**
-* 병원 방문 시 참고 자료로 활용 가능
-* 복용 현황, 주요 이슈, 추천 요약 포함
+### C. 증상 + 처방전 함께 입력 (핵심)
+```
+"혈압약을 먹고 있는데 자꾸 어지러워요"
+```
+→ 약 정보 + 생활 선택을 함께 제시
 
 ---
 
-## 5. 데이터 & 지식 구조 (How)
+## 🔄 처리 흐름
 
-### 5.1 데이터 소스
-
-* 📚 동의보감 원문 → 현대어 번역 DB
-* 🧪 PubMed / 임상 논문 메타데이터
-* 🍽️ 전통 식재료 / 음식 DB (traditional_foods)
-* 💊 건강기능식품 / 성분 / 리뷰 데이터
-
-### 5.2 RAG (Retrieval Augmented Generation)
-
-* 증상/질문 → 벡터 검색
-* 관련 지식 조합 후 LLM 응답 생성
-* **근거 기반 답변 + 출처 유지**
-
----
-
-## 6. 시스템 아키텍처
-
-### 6.1 기술 스택
-
-* **Frontend**: React + Tailwind
-* **Backend**: FastAPI
-* **DB**: PostgreSQL (Supabase)
-* **Vector DB**: pgvector
-* **Cache / Rate Limit**: Redis (Upstash)
-* **AI**: LLM + Embedding 기반 RAG
-
-### 6.2 주요 도메인
-
-* User / Auth
-* Health Stack (Symptoms, Drugs, Supplements)
-* Food & Content
-* Report / PDF
-
----
-
-## 7. ERD & 문서 구조
-
-```text
-## 7. 문서 구조
-
-### 7.1 아키텍처 다이어그램
-- `docs/architecture/architecture.md` — 시스템 아키텍처 (React ↔ FastAPI ↔ Supabase ↔ pgvector ↔ Redis)
-- `docs/architecture/report-pipeline.md` — PDF 리포트 생성 파이프라인
-- `docs/architecture/one-page-concept.md` — IR/공모전용 한 장 개념도
-
-### 7.2 ERD & 상세 문서
-
-/docs
- ├─ erd/
- │   ├─ erd-health-stack.md
- │   ├─ erd-content-rag-billing.md
- │   ├─ erd-full.md
- │   └─ schema.dbml
- ├─ pdf/
- │   └─ pdf_generation_rules.v1.json
- └─ README.md
+```
+[사용자 입력]
+     ↓
+[입력 해석] → 증상 분류 / 처방약 인식
+     ↓
+[Health Stack 구성] → 현재 복용 약 / 증상 맥락 / 주의 조건
+     ↓
+[정보 레이어 결합] → 현대의학 정보 / 동의보감 생활 가이드
+     ↓
+[결과 제공] → 설명 / 추천 / 선택지
 ```
 
 ---
 
-## 8. 차별점 (Why Health Stack)
+## 📋 제공 정보
 
-* ✅ "추천"보다 **이해**에 집중
-* ✅ 전통 의학 + 현대 의학의 구조적 결합
-* ✅ 개인 데이터 중심 (내 기록이 핵심)
-* ✅ 병원·전문가와 함께 쓰기 좋은 형태
+### 기본 설명
+1. 지금 상태 요약
+2. 약 / 증상 이해 설명
+3. 주의사항
+
+### 동의보감 기반 식재료 추천
+- 증상에 따라 도움이 될 수 있는 식재료 목록
+- 왜 이 식재료가 권장되는지 (동의보감 근거)
+- 피하면 좋은 음식 방향
+
+### 확장 콘텐츠
+4. 활용 방법 (요리 영상)
+5. 주변 음식점 추천 (지도 API 연동)
+6. 재료 구매 링크
 
 ---
 
-## 9. 확장 로드맵
+## 🏗️ 기술 스택
+
+| 영역 | 기술 |
+|------|------|
+| **Frontend** | React + Tailwind |
+| **Backend** | FastAPI / Node.js |
+| **Database** | PostgreSQL (Supabase) |
+| **Vector DB** | pgvector |
+| **Cache** | Redis (Upstash) |
+| **AI** | LLM + Embedding 기반 RAG |
+| **지도 API** | Kakao / Naver / Google Maps |
+
+---
+
+## 📊 데이터베이스 구조
+
+### 테이블 통계 (총 40개)
+
+| 도메인 | 테이블 수 | 설명 |
+|--------|----------|------|
+| 사용자 인증 & 프로필 | 4 | auth_users, user_profiles, user_preferences, user_push_tokens |
+| 마스터 데이터 | 4 | foods_master, disease_master, catalog_drugs, catalog_supplements |
+| 복용 관리 | 3 | user_intake_items, intake_schedules, intake_logs |
+| 콘텐츠 매핑 | 6 | symptom_ingredient_map, symptom_recipe_map, symptom_video_map 등 |
+| 상호작용 & RAG | 3 | interaction_facts, pubmed_papers, pubmed_embeddings |
+| 결제 & 구독 | 4 | plans, subscriptions, payments, reports |
+| 입력 세션 레이어 | 5 | user_input_sessions, user_symptoms, user_prescriptions 등 |
+| 레스토랑 추천 | 7 | restaurants, restaurant_menus, restaurant_search_results 등 |
+| 카탈로그 코드 | 2 | catalog_major_codes, catalog_minor_codes |
+| 캐시 테이블 | 2 | youtube_cache, commerce_cache |
+
+---
+
+## 🔌 API 현황
+
+### 총 45개 엔드포인트
+
+| 도메인 | 엔드포인트 | 주요 기능 |
+|--------|-----------|----------|
+| Auth/Profile | 3 | 프로필 조회/수정, 푸시 토큰 |
+| Intake Stack | 4 | 복용 항목 CRUD |
+| Schedules | 8 | 스케줄 CRUD, 복용 체크 |
+| Input Sessions | 6 | 증상/처방전 세션 관리 |
+| Interaction | 1 | 조합 분석 |
+| Symptom Content | 3 | 증상 기반 콘텐츠 |
+| Restaurant | 5 | 음식점 검색/즐겨찾기 |
+| PubMed RAG | 2 | 근거 검색 |
+| Reports | 2 | 리포트 생성/조회 |
+| Billing | 4 | 구독/결제 |
+| Catalog | 4 | 카탈로그 검색 |
+| Admin | 3 | 캐시/동기화 관리 |
+
+---
+
+## 📁 프로젝트 구조
+
+```
+health-stack/
+├── README.md                      ← 📍 현재 문서
+│
+├── docs/                          ← 📚 설계 문서
+│   ├── SERVICE_PLAN.md            ← 서비스 기획안
+│   ├── api.md                     ← API 설계 (45개)
+│   ├── database.md                ← DB 설계 철학
+│   ├── WORKFLOW.md                ← 서비스 워크플로우
+│   │
+│   ├── erd/                       ← ERD & 스키마
+│   │   ├── schema.integrated.dbml ← 🔑 Source of Truth
+│   │   ├── erd-full.md            ← 전체 ERD
+│   │   └── *.png                  ← ERD 이미지
+│   │
+│   └── architecture/              ← 아키텍처
+│       ├── architecture.md
+│       └── report-pipeline.md
+│
+├── src/                           ← 소스 코드
+└── .agent/                        ← AI Agent 설정
+```
+
+---
+
+## 🗺️ 로드맵
 
 ### Phase 1: MVP
-
-* 증상 → 음식/콘텐츠 추천
-* 기본 Health Stack 관리
+- [x] DB 스키마 설계 (40개 테이블)
+- [x] API 설계 (45개 엔드포인트)
+- [ ] 증상 → 음식/콘텐츠 추천
+- [ ] 기본 Health Stack 관리
+- [ ] 복용 시간표 + 알림
 
 ### Phase 2: 고도화
-
-* 복용 충돌 분석
-* 개인 맞춤 리포트 자동화
+- [ ] 복용 충돌 분석 (RAG)
+- [ ] 음식점 추천 (지도 API 연동)
+- [ ] 개인 맞춤 PDF 리포트
 
 ### Phase 3: 비즈니스
-
-* 구독형 리포트
-* 전문가 협업 (약사/영양사)
-* B2B / 헬스케어 연동
+- [ ] 구독형 서비스
+- [ ] B2B API 제공
+- [ ] 전문가 협업 (약사/영양사)
 
 ---
 
-## 10. 비전
+## 🔐 보안 설계
 
-> **Health Stack은 "건강 정보를 소비하는 서비스"가 아니라
+### RLS (Row Level Security)
+- 모든 개인 데이터: `user_id = auth.uid()` 기반 보호
+- 공용 데이터: 읽기 허용, 쓰기는 서버 권한
+
+### 의료 리스크 대응
+- 진단/처방/복약 지시 표현 금지
+- 불확실성 그대로 표현
+- 위험 조합 시 의료진 상담 권고
+
+---
+
+## 📖 문서 가이드
+
+| 목적 | 문서 |
+|------|------|
+| 서비스 이해 | [`docs/SERVICE_PLAN.md`](./docs/SERVICE_PLAN.md) |
+| DB 구조 파악 | [`docs/erd/erd-full.md`](./docs/erd/erd-full.md) |
+| API 개발 | [`docs/api.md`](./docs/api.md) |
+| 아키텍처 리뷰 | [`docs/architecture/architecture.md`](./docs/architecture/architecture.md) |
+
+---
+
+## 🚀 시작하기
+
+```bash
+# 저장소 클론
+git clone https://github.com/kyoungaMin/HealthStack.git
+cd HealthStack
+
+# 환경 설정 (추후 추가)
+# npm install / pip install -r requirements.txt
+```
+
+---
+
+## 📌 프로젝트 정보
+
+| 항목 | 내용 |
+|------|------|
+| 프로젝트명 | Health Stack |
+| 서비스명 | 내몸설명서 |
+| 슬로건 | 내 몸에 들어가는 모든 것의 설명서 |
+| 상태 | 🚧 설계 완료 / MVP 개발 중 |
+
+---
+
+## ✨ 비전
+
+> **Health Stack은 "건강 정보를 소비하는 서비스"가 아니라  
 > "내 몸을 이해하는 인프라"를 만드는 프로젝트입니다.**
 
 ---
 
-## 11. 프로젝트 네이밍
-
-* 프로젝트 코드명: **Health Stack**
-* 서비스명: **내몸설명서**
-* 슬로건: *"내 몸을 이해하는 가장 쉬운 방법"*
-
----
-
-## 12. 상태
-
-* 🚧 현재 상태: 설계 및 MVP 개발 중
-* 🧠 AI / 데이터 구조 지속 개선 중
-
----
-
-필요 시:
-
-* Investor Deck 버전 README
-* 개발자 전용 README (Setup / ENV)
-* 사용자용 소개 페이지
-
-👉 언제든지 확장 가능
+**최종 업데이트**: 2026-02-04
