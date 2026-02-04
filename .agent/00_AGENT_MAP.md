@@ -1,32 +1,104 @@
 # Health Stack Agent Map (오늘 기획서 기준)
 
-이 폴더의 에이전트들은 **Health Stack** 서비스 기획서의 원칙(치료/처방 금지, 정보 이해·판단 보조·생활 관리·알림 중심)을 그대로 따릅니다.  
-각 에이전트는 **하나의 책임(Single Responsibility)** 만 갖도록 분리되어 있습니다.
+# AGENT MAP (운영 관문)
 
-## 전체 흐름
+이 폴더의 에이전트들은 "개발 운영체계"처럼 사용한다.
+원칙:
+- 한 번에 한 agent만 호출 → 결과물(Output)을 다음 agent의 Context로 넘긴다.
+- 형식(Output)은 SNIPPETS를 기준으로 고정한다.
+- API 변경은 문서보다 API_MOCK.json을 먼저 갱신한다(SSOT).
 
-1. **product-philosophy-guard**: 서비스 철학/문구/기능이 의료행위처럼 보이지 않게 수문장 역할
-2. **medical-info-summary**: 처방약 정보를 쉬운 언어로 요약 + 근거 수준 표시
-3. **interaction-analysis**: 약×약/약×건기식/약×음식(주의 수준) 상호작용 위험도 산정
-4. **donguibogam-lifestyle**: 동의보감 레이어를 '생활 선택 가이드'로 번역(치료/대체 금지)
-5. **meal-plan**: 증상 기반 식단 방향성/구성(약 고려 문구 포함)
-6. **intake-schedule-optimizer**: 공복/식후/취침/간격 조건 기반 시간표 자동 생성
-7. **notification-tone**: 알림 문장 톤 가이드(명령/불안 유발 금지)
-8. **frontend-ux**: 정보 밀도/가독성/위험도 UI 표현 설계
-9. **backend-api-architect**: FastAPI + (DB/RLS 전제) API 설계
-10. **pdf-report-generator**: 개인화 PDF 리포트 생성(근거 출처/스냅샷)
-11. **qa-risk-audit**: 문구·흐름·데이터/근거/면책 누락 검사
-12. **docs-policy-writer**: 약관/개인정보/의료면책/고정 고지 문구 작성
+---
 
-## 파일 규칙
+## 공통 입력 계약 (모든 agent 요청에 사용)
+아래 템플릿을 복사해 요청한다.
 
-- 각 에이전트 문서에는 다음 섹션이 포함됩니다.
-  - 목적 / 금지사항 / 입력 / 출력 / 작업 절차
-  - 시스템 프롬프트(바로 복붙용)
-  - 체크리스트
-  - 예시 요청/응답(짧게)
+- Goal: (이번 요청의 최종 결과 1줄)
+- Context:
+  - (기존 결정/제약 3~5줄)
+  - (연관 파일: API_MOCK.json / SNIPPETS.json / README 등)
+- Output:
+  - (원하는 산출물 형식: md/json/sql/ts)
+  - (섹션 구성/길이/표현 톤/제약)
 
-## 운영 팁
+---
 
-- 제품/문구 변경 시: `product-philosophy-guard` → `qa-risk-audit` 순서로 우선 검증
-- 데이터 소스 변경 시: `medical-info-summary`, `interaction-analysis`, `pdf-report-generator`에 근거/출처 필드 반드시 반영
+## SSOT(단일 진실 소스)
+- API: API_MOCK.json
+- 문서/템플릿: SNIPPETS.json, AGENT_SNIPPETS.txt
+- 운영 가이드: README_AGENT_GUIDE.md, USAGE.md
+
+---
+
+## Agent Directory (언제/무엇/다음 단계)
+
+### 01_product-philosophy-guard.md
+- When to use: 기능/정책/제품원칙을 먼저 잡아야 할 때(범위, 금지, 성공지표)
+- Output: PRD 1페이지(문제/대상/가치/범위/비범위/지표/리스크)
+- Handoff: → 09_backend-api-architect / 08_frontend-ux / 12_docs-policy-writer
+
+### 02_medical-info-summary.md
+- When to use: 의학/영양 정보 요약(근거 수준, 주의/금기 포함)
+- Output: 근거 요약 + 주의사항 + 표현 가드레일(과장 금지 문구 포함)
+- Handoff: → 04_donguibogam-lifestyle / 07_notification-tone / 12_docs-policy-writer / 10_pdf-report-generator
+
+### 03_interaction-analysis.md
+- When to use: 사용자 흐름/행동 설계, 입력-출력 UX, 실수 패턴 분석
+- Output: 사용자 여정/실패 케이스/마찰 포인트/개선안
+- Handoff: → 08_frontend-ux / 11_qa-risk-audit
+
+### 04_donguibogam-lifestyle.md
+- When to use: 동의보감 기반 현대 해석, 라이프스타일 톤/서사
+- Output: 콘텐츠 초안 + 금기/주의(근거 출처 링크는 별도)
+- Handoff: → 02_medical-info-summary(검증) / 07_notification-tone / 10_pdf-report-generator
+
+### 05_meal-plan.md
+- When to use: 식단 추천(메뉴 구성, 장보기 리스트, 대체식)
+- Output: 3~7일 식단 + 레시피 요약 + 구매 리스트
+- Handoff: → 06_intake-schedule-optimizer / 10_pdf-report-generator / 11_qa-risk-audit
+
+### 06_intake-schedule-optimizer.md
+- When to use: 복용 스케줄/섭취 타이밍 최적화(상호작용, 커피/약/영양제 등)
+- Output: 시간표 + 주의사항 + 예외 처리 규칙
+- Handoff: → 07_notification-tone / 10_pdf-report-generator / 11_qa-risk-audit
+
+### 07_notification-tone.md
+- When to use: 푸시/메일/인앱 알림 카피 통일(친근/중립/엄숙)
+- Output: 길이별(60/120/메일) 문구 + 변수 템플릿
+- Handoff: → 12_docs-policy-writer / 11_qa-risk-audit / 08_frontend-ux
+
+### 08_frontend-ux.md
+- When to use: 화면 구조/섹션 설계, 컴포넌트 리스트, 정보 위계
+- Output: IA + 화면별 섹션 + 컴포넌트/상태(loading/empty/error)
+- Handoff: → 09_backend-api-architect(API 요구사항 명확화) / 11_qa-risk-audit
+
+### 09_backend-api-architect.md
+- When to use: DB/API 설계, RLS, 캐시/큐(Upstash/Redis) 포함
+- Output: API_SPEC + DB 스키마 + 에러 규격 + API_MOCK.json 업데이트안
+- Handoff: → 08_frontend-ux / 10_pdf-report-generator / 11_qa-risk-audit
+
+### 10_pdf-report-generator.md
+- When to use: PDF 리포트 구조/데이터 계약/렌더 규칙 확정
+- Output: 섹션별 입력 JSON 스키마 + 렌더 규칙 + 샘플 데이터
+- Handoff: → 09_backend-api-architect(데이터 수집 보완) / 11_qa-risk-audit / 12_docs-policy-writer
+
+### 11_qa-risk-audit.md
+- When to use: 엣지케이스/정책 리스크/테스트케이스 작성
+- Output: Given-When-Then 테스트케이스 + 위험도 라벨 + 체크리스트
+- Handoff: → 09_backend-api-architect / 08_frontend-ux / 12_docs-policy-writer
+
+### 12_docs-policy-writer.md
+- When to use: 면책/고지/약관/표현 가이드(특히 의료/건강)
+- Output: 정책 문구 세트 + UI 삽입 위치 가이드 + 금지 표현 리스트
+- Handoff: → 07_notification-tone / 10_pdf-report-generator / 11_qa-risk-audit
+
+---
+
+## 표준 개발 루틴 (권장 순서)
+1) 01_product-philosophy-guard
+2) 09_backend-api-architect (API_MOCK.json 먼저 갱신)
+3) 08_frontend-ux
+4) 10_pdf-report-generator
+5) 11_qa-risk-audit
+6) 07_notification-tone
+7) 12_docs-policy-writer

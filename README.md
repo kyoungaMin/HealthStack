@@ -118,6 +118,15 @@
 ## 7. ERD & 문서 구조
 
 ```text
+## 7. 문서 구조
+
+### 7.1 아키텍처 다이어그램
+- `docs/architecture/architecture.md` — 시스템 아키텍처 (React ↔ FastAPI ↔ Supabase ↔ pgvector ↔ Redis)
+- `docs/architecture/report-pipeline.md` — PDF 리포트 생성 파이프라인
+- `docs/architecture/one-page-concept.md` — IR/공모전용 한 장 개념도
+
+### 7.2 ERD & 상세 문서
+
 /docs
  ├─ erd/
  │   ├─ erd-health-stack.md

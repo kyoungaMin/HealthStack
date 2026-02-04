@@ -1,58 +1,154 @@
 # 🔌 API Design (FastAPI / Node)
 
 이 문서는 Health Stack 서비스의 API 설계를 정의합니다.
-- 인증: Supabase Auth (Google/Kakao OAuth)
-- 권한: Supabase RLS
-- 서버 역할: 결제 웹훅, PubMed 수집/요약, RAG, PDF 생성, 고급 조합 분석
+
+> **소스**: [`schema.integrated.dbml`](./erd/schema.integrated.dbml)  
+> **최종 업데이트**: 2026-02-04
 
 ---
 
 ## 0. 공통 규칙
 
 ### Base URL
-- `/api/v1`
+```
+/api/v1
+```
 
 ### 인증
-- 클라이언트는 Supabase 세션 토큰을 사용
-- 서버는 Supabase service_role로 운영(웹훅/배치/RAG)
+- 클라이언트: Supabase 세션 토큰 (`Authorization: Bearer <token>`)
+- 서버: Supabase `service_role`로 운영 (웹훅/배치/RAG)
 
 ### 응답 규칙
-- 성공: `{ "data": ... }`
-- 오류: `{ "error": { "code": "...", "message": "...", "details": ... } }`
+```json
+// 성공
+{ "data": { ... }, "meta": { "total": 100, "page": 1 } }
+
+// 오류
+{ "error": { "code": "INVALID_INPUT", "message": "...", "details": [...] } }
+```
+
+### HTTP Status Codes
+| Code | 설명 |
+|------|------|
+| 200 | 성공 |
+| 201 | 생성됨 |
+| 400 | 잘못된 요청 |
+| 401 | 인증 필요 |
+| 403 | 권한 없음 |
+| 404 | 리소스 없음 |
+| 429 | Rate Limit 초과 |
+| 500 | 서버 오류 |
 
 ---
 
 ## 1. Auth / Profile
 
 ### 1.1 내 프로필 조회
-- `GET /me`
-- DB: `user_profiles`, `user_preferences`
+```http
+GET /me
+```
+**DB**: `user_profiles`, `user_preferences`
 
-### 1.2 생활시간/선호 설정 저장
-- `PATCH /me`
-- Body:
+**Response**:
 ```json
 {
+  "data": {
+    "user_id": "uuid",
+    "display_name": "홍길동",
+    "locale": "ko-KR",
+    "timezone": "Asia/Seoul",
+    "wake_time": "07:00",
+    "breakfast_time": "08:00",
+    "lunch_time": "12:30",
+    "dinner_time": "19:00",
+    "bed_time": "23:00",
+    "preferences": {
+      "preferred_categories": ["soup", "tea"],
+      "excluded_ingredients": ["spicy"],
+      "health_conditions": { "diabetes": false },
+      "notification_enabled": true
+    }
+  }
+}
+```
+
+---
+
+### 1.2 프로필 설정 저장
+```http
+PATCH /me
+```
+
+**Body**:
+```json
+{
+  "display_name": "홍길동",
   "wake_time": "07:00",
   "breakfast_time": "08:00",
   "lunch_time": "12:30",
   "dinner_time": "19:00",
   "bed_time": "23:00",
-  "notification_enabled": true
+  "notification_enabled": true,
+  "preferred_categories": ["soup"],
+  "excluded_ingredients": ["spicy"]
 }
+```
+
+---
+
+### 1.3 푸시 토큰 등록
+```http
+POST /me/push-tokens
+```
+
+**Body**:
+```json
+{
+  "platform": "ios",
+  "token": "fcm_token_here"
+}
+```
+
+**DB**: `user_push_tokens`
+
+---
 
 ## 2. Intake Stack (복용 스택)
+
 ### 2.1 복용 항목 목록
-
+```http
 GET /intake-items
+GET /intake-items?active=true
+```
 
-DB: user_intake_items
+**DB**: `user_intake_items`
+
+**Response**:
+```json
+{
+  "data": [
+    {
+      "id": 101,
+      "item_type": "drug",
+      "display_name": "아스피린",
+      "catalog_drug_id": 123,
+      "dose_text": "100mg",
+      "route": "oral",
+      "active": true
+    }
+  ]
+}
+```
+
+---
 
 ### 2.2 복용 항목 생성
-
+```http
 POST /intake-items
+```
 
-## Body 예:
+**Body**:
+```json
 {
   "item_type": "supplement",
   "display_name": "마그네슘",
@@ -60,73 +156,262 @@ POST /intake-items
   "dose_text": "1정",
   "route": "oral"
 }
+```
 
-2.3 복용 항목 수정/비활성
+**item_type**: `drug` | `supplement` | `food`
 
+---
+
+### 2.3 복용 항목 수정
+```http
 PATCH /intake-items/{id}
+```
 
-active=false로 soft off 권장
+**Body**:
+```json
+{
+  "dose_text": "2정",
+  "active": false
+}
+```
 
-2.4 복용 항목 삭제
+---
 
+### 2.4 복용 항목 삭제
+```http
 DELETE /intake-items/{id}
+```
 
-3. Schedules (시간표/알림)
-3.1 스케줄 목록
+---
 
+## 3. Schedules (시간표/알림)
+
+### 3.1 스케줄 목록
+```http
 GET /schedules
+GET /schedules?intake_item_id=101
+```
 
-DB: intake_schedules
+**DB**: `intake_schedules`
 
-3.2 스케줄 생성
+---
 
+### 3.2 스케줄 생성
+```http
 POST /schedules
+```
 
-Body 예:
-
+**Body**:
+```json
 {
   "intake_item_id": 101,
   "pattern": "daily",
+  "days_of_week": [1, 2, 3, 4, 5],
   "time_anchor": "breakfast",
   "offset_minutes": 15,
   "rules": { "separate_by_minutes": 120 }
 }
+```
 
-3.3 오늘 일정 생성(서버/클라이언트)
+**Enum 값**:
+- `pattern`: `daily` | `weekdays` | `weekend` | `custom`
+- `time_anchor`: `wake` | `breakfast` | `lunch` | `dinner` | `bed` | `custom`
 
+---
+
+### 3.3 스케줄 수정
+```http
+PATCH /schedules/{id}
+```
+
+---
+
+### 3.4 스케줄 삭제
+```http
+DELETE /schedules/{id}
+```
+
+---
+
+### 3.5 오늘 일정 생성
+```http
 POST /schedule-generate/today
+```
 
-역할:
+**동작**: 생활시간 + 스케줄 규칙으로 오늘 복용 타임라인 계산, `intake_logs`에 scheduled row 생성
 
-생활시간 + 스케줄 규칙으로 오늘 복용 타임라인 계산
+---
 
-필요 시 intake_logs에 scheduled row 생성
+### 3.6 오늘 복용 타임라인 조회
+```http
+GET /intake/today?date=2026-02-04
+```
 
-3.4 오늘 복용 타임라인 조회
+**DB**: `intake_schedules`, `intake_logs`, `user_profiles`
 
-GET /intake/today?date=YYYY-MM-DD
+**Response**:
+```json
+{
+  "data": [
+    {
+      "log_id": 501,
+      "intake_item_id": 101,
+      "display_name": "마그네슘",
+      "scheduled_at": "2026-02-04T08:15:00+09:00",
+      "taken_at": null,
+      "status": "pending"
+    }
+  ]
+}
+```
 
-DB: intake_schedules, intake_logs, user_profiles
+---
 
-3.5 복용 체크
-
+### 3.7 복용 체크
+```http
 POST /intake/logs/{id}/take
+```
 
-DB: intake_logs (taken_at, status='taken')
+**DB**: `intake_logs` → `taken_at`, `status='taken'`
 
-3.6 스킵/스누즈
+---
 
+### 3.8 스킵/스누즈
+```http
 POST /intake/logs/{id}/skip
+POST /intake/logs/{id}/snooze
+```
 
-POST /intake/logs/{id}/snooze (minutes)
+**Body (snooze)**:
+```json
+{ "minutes": 30 }
+```
 
-4. Interaction Check (조합 분석)
-4.1 조합 체크
+---
 
+## 4. Input Sessions (입력 세션)
+
+> **신규**: 증상/처방전 입력 세션 관리
+
+### 4.1 세션 생성
+```http
+POST /sessions
+```
+
+**Body**:
+```json
+{
+  "input_type": "combined",
+  "input_summary": "혈압약 복용 중, 어지러움 증상"
+}
+```
+
+**input_type**: `symptom` | `prescription` | `combined`
+
+**DB**: `user_input_sessions`
+
+---
+
+### 4.2 세션에 증상 추가
+```http
+POST /sessions/{session_id}/symptoms
+```
+
+**Body**:
+```json
+{
+  "symptom_id": 42,
+  "symptom_text": "속이 더부룩해요"
+}
+```
+
+**DB**: `user_symptoms`
+
+---
+
+### 4.3 세션에 처방전 추가
+```http
+POST /sessions/{session_id}/prescriptions
+```
+
+**Body**:
+```json
+{
+  "prescription_image_url": "https://storage.../rx.jpg",
+  "prescribed_at": "2026-01-15"
+}
+```
+
+**DB**: `user_prescriptions`
+
+---
+
+### 4.4 처방전 약물 추가
+```http
+POST /prescriptions/{prescription_id}/drugs
+```
+
+**Body**:
+```json
+{
+  "drug_name": "아스피린",
+  "dosage": "100mg",
+  "frequency": "1일 1회",
+  "duration": "30일"
+}
+```
+
+**DB**: `user_prescription_drugs`
+
+---
+
+### 4.5 세션 추천 결과 조회
+```http
+GET /sessions/{session_id}/recommendations
+```
+
+**DB**: `session_recommendation_results`
+
+**Response**:
+```json
+{
+  "data": [
+    {
+      "result_type": "ingredient",
+      "ref_table": "foods_master",
+      "ref_id": "100100",
+      "reason": "소화에 도움되는 생강"
+    },
+    {
+      "result_type": "restaurant",
+      "ref_table": "restaurants",
+      "ref_id": "501",
+      "reason": "생강차 전문점"
+    }
+  ]
+}
+```
+
+---
+
+### 4.6 세션 기반 추천 생성
+```http
+POST /sessions/{session_id}/generate-recommendations
+```
+
+**동작**: 세션 내 증상/처방전 분석 → 추천 결과 생성
+
+---
+
+## 5. Interaction Check (조합 분석)
+
+### 5.1 조합 체크
+```http
 POST /interactions/check
+```
 
-Body:
-
+**Body**:
+```json
 {
   "items": [
     { "type": "drug", "ref": "123" },
@@ -134,283 +419,481 @@ Body:
     { "type": "food", "ref": "100100" }
   ]
 }
+```
 
+**DB**: `interaction_facts`
 
-동작:
+**Response**:
+```json
+{
+  "data": {
+    "interactions": [
+      {
+        "pair": ["drug:123", "supplement:12"],
+        "severity": "moderate",
+        "evidence_level": "high",
+        "summary_ko": "흡수율이 감소할 수 있습니다",
+        "action_ko": "2시간 간격을 두고 복용하세요",
+        "pmids": ["12345678"]
+      }
+    ],
+    "overall_risk": "moderate"
+  }
+}
+```
 
-interaction_facts 조회(룰 기반)
+**severity**: `none` | `mild` | `moderate` | `severe`
 
-없으면 RAG 경로로 보강(Optional)
+---
 
-5. Symptom → Meal / Content (증상 식단/콘텐츠)
-5.1 증상 기반 번들 조회
+## 6. Symptom → Content (증상 콘텐츠)
 
+### 6.1 증상 검색
+```http
+GET /symptoms?q=소화
+```
+
+**DB**: `disease_master`
+
+---
+
+### 6.2 증상 기반 번들 조회
+```http
 GET /symptoms/{symptom_id}/bundle
+```
 
-반환:
+**Response**:
+```json
+{
+  "data": {
+    "symptom": { "id": 42, "disease": "소화불량" },
+    "ingredients": {
+      "helpful": [
+        { "rep_code": "100100", "rep_name": "생강", "rationale_ko": "..." }
+      ],
+      "avoid": [
+        { "rep_code": "200200", "rep_name": "고추", "rationale_ko": "..." }
+      ]
+    },
+    "recipes": [
+      { "id": 10, "title": "생강차", "meal_slot": "snack" }
+    ],
+    "videos": [
+      { "id": 5, "title": "소화에 좋은 음식", "provider": "youtube", "video_id": "xxx" }
+    ],
+    "product_links": [
+      { "rep_code": "100100", "provider": "naver_shopping", "query_template": "생강" }
+    ]
+  }
+}
+```
 
-helpful/avoid 재료
+**DB**: `symptom_ingredient_map`, `symptom_recipe_map`, `symptom_video_map`, `ingredient_product_links`
 
-레시피
+---
 
-영상(큐레이션)
-
-DB:
-
-symptom_ingredient_map
-
-symptom_recipe_map + recipes
-
-symptom_video_map + content_videos
-
-5.2 오늘 식단 추천
-
+### 6.3 오늘 식단 추천
+```http
 POST /mealplan/today
+```
 
-Body:
-
+**Body**:
+```json
 {
-  "symptom_ids": [1, 2],
-  "constraints": { "exclude": ["spicy"] }
+  "symptom_ids": [42, 43],
+  "constraints": { 
+    "exclude_ingredients": ["spicy"],
+    "meal_slots": ["breakfast", "lunch", "dinner"]
+  }
 }
+```
 
+---
 
-동작:
+## 7. Restaurant (음식점 추천)
 
-증상 매핑 기반 큐레이션 + 사용자 제외 조건
+> **신규**: 지역 음식점 추천 API
 
-6. PubMed RAG Search (근거 검색)
-6.1 RAG 검색
+### 7.1 주변 음식점 검색
+```http
+GET /restaurants/search
+```
 
+**Query Parameters**:
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `lat` | decimal | 위도 (필수) |
+| `lng` | decimal | 경도 (필수) |
+| `radius` | int | 반경 (미터, 기본 1000) |
+| `rep_code` | string | 식재료 코드 |
+| `symptom_id` | int | 증상 ID |
+| `sort_by` | string | `distance` \| `rating` \| `relevance` |
+
+**DB**: `restaurants`, `restaurant_search_requests`, `restaurant_search_results`
+
+**Response**:
+```json
+{
+  "data": [
+    {
+      "id": 501,
+      "name": "생강나무",
+      "category": "한식",
+      "address": "서울시 강남구...",
+      "distance_meters": 350,
+      "rating_avg": 4.5,
+      "review_count": 128,
+      "matched_rep_codes": ["100100"],
+      "matched_reason": "생강차 메뉴 제공"
+    }
+  ]
+}
+```
+
+---
+
+### 7.2 음식점 상세 조회
+```http
+GET /restaurants/{id}
+```
+
+**Response**:
+```json
+{
+  "data": {
+    "id": 501,
+    "name": "생강나무",
+    "category": "한식",
+    "address_full": "서울시 강남구 역삼동 123-4",
+    "phone": "02-1234-5678",
+    "website_url": "https://...",
+    "rating_avg": 4.5,
+    "menus": [
+      { "menu_name": "생강차", "price": 5000, "is_signature": true }
+    ]
+  }
+}
+```
+
+---
+
+### 7.3 음식점 즐겨찾기
+```http
+POST /restaurants/{id}/favorite
+DELETE /restaurants/{id}/favorite
+```
+
+**DB**: `user_restaurant_favorites`
+
+---
+
+### 7.4 음식점 방문 로그
+```http
+POST /restaurants/{id}/visit-log
+```
+
+**Body**:
+```json
+{
+  "action_type": "navigate",
+  "search_request_id": 1001,
+  "symptom_id": 42
+}
+```
+
+**action_type**: `view` | `call` | `navigate` | `favorite` | `visit_confirm`
+
+**DB**: `user_restaurant_visit_logs`
+
+---
+
+### 7.5 내 즐겨찾기 목록
+```http
+GET /me/restaurant-favorites
+```
+
+---
+
+## 8. PubMed RAG Search (근거 검색)
+
+### 8.1 RAG 검색
+```http
 POST /rag/pubmed
+```
 
-Body:
-
-{ "query": "magnesium insomnia efficacy", "top_k": 5 }
-
-
-DB:
-
-pubmed_embeddings (vector search)
-
-pubmed_papers
-
-6.2 PubMed 수집 배치(서버)
-
-POST /admin/pubmed/ingest
-
-Server only (service_role)
-
-7. Reports (PDF)
-7.1 리포트 생성 요청
-
-POST /reports
-
-Body:
-
+**Body**:
+```json
 {
-  "report_type": "stack_safety",
-  "inputs": { "items": [ ... ], "notes": "..." }
+  "query": "magnesium insomnia efficacy",
+  "top_k": 5
 }
+```
 
+**DB**: `pubmed_embeddings` (vector search), `pubmed_papers`
 
-동작:
+**Response**:
+```json
+{
+  "data": {
+    "results": [
+      {
+        "pmid": "12345678",
+        "title": "Effect of Magnesium on Sleep",
+        "abstract": "...",
+        "relevance_score": 0.92,
+        "journal": "Sleep Medicine",
+        "pub_year": 2023
+      }
+    ]
+  }
+}
+```
 
-서버가 reports.status='draft' 생성
+---
 
-비동기 생성 후 generated로 업데이트 + pdf_path
+### 8.2 PubMed 수집 배치 (서버)
+```http
+POST /admin/pubmed/ingest
+```
 
-7.2 리포트 목록/조회
+**Auth**: `service_role` only
 
+---
+
+## 9. Reports (PDF)
+
+### 9.1 리포트 생성 요청
+```http
+POST /reports
+```
+
+**Body**:
+```json
+{
+  "report_type": "interaction",
+  "title": "내 복용 조합 안전성 리포트",
+  "inputs": {
+    "intake_item_ids": [101, 102, 103],
+    "symptom_ids": [42]
+  }
+}
+```
+
+**report_type**: `interaction` | `mealplan` | `intake_summary`
+
+**DB**: `reports` → `status='pending'`
+
+---
+
+### 9.2 리포트 목록/조회
+```http
 GET /reports
-
 GET /reports/{id}
+```
 
-8. Billing (구독/결제)
-8.1 플랜 조회
+**Response**:
+```json
+{
+  "data": {
+    "id": 201,
+    "report_type": "interaction",
+    "title": "내 복용 조합 안전성 리포트",
+    "status": "done",
+    "pdf_path": "https://storage.../report_201.pdf",
+    "created_at": "2026-02-04T10:00:00Z"
+  }
+}
+```
 
+**status**: `pending` | `generating` | `done` | `failed`
+
+---
+
+## 10. Billing (구독/결제)
+
+### 10.1 플랜 조회
+```http
 GET /plans
+```
 
-DB: plans
+**DB**: `plans`
 
-8.2 구독 생성(결제 페이지/세션 생성)
+**Response**:
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "code": "free",
+      "name": "Free",
+      "price": 0,
+      "features": { "intake_items_limit": 5 }
+    },
+    {
+      "id": 2,
+      "code": "premium",
+      "name": "Premium",
+      "price": 9900,
+      "features": { "intake_items_limit": -1, "pdf_discount": 50 }
+    }
+  ]
+}
+```
 
+---
+
+### 10.2 내 구독 상태
+```http
+GET /me/subscription
+```
+
+**DB**: `subscriptions`
+
+---
+
+### 10.3 구독 생성
+```http
 POST /billing/subscribe
+```
 
-Server only 추천
+**Body**:
+```json
+{
+  "plan_code": "premium",
+  "provider": "stripe"
+}
+```
 
-8.3 결제 웹훅(서버)
+**Response**:
+```json
+{
+  "data": {
+    "checkout_url": "https://checkout.stripe.com/..."
+  }
+}
+```
 
+---
+
+### 10.4 결제 웹훅 (서버)
+```http
 POST /billing/webhook
+```
 
-동작:
+**동작**:
+- `payments` 기록
+- `subscriptions` 상태 반영
 
-payments 기록
-
-subscriptions 상태 반영
-
-9. Rate Limit / Audit (옵션)
-
-search_logs 기록 (검색/응답시간/cache_hit)
-
-user_quota_monthly로 월간 제한 관리
-
-user_request_dedupe로 중복 요청 캐시 가능
-
+**Auth**: Webhook signature 검증
 
 ---
 
-# 3) `docs/architecture.md`
+## 11. Catalog (카탈로그)
 
-```md
-# 🧱 Architecture (Supabase + App + AI)
+### 11.1 의약품 검색
+```http
+GET /catalog/drugs?q=아스피린
+```
 
-이 문서는 Health Stack 서비스의 전체 아키텍처를 설명합니다.
-
----
-
-## 1. 목표
-
-- 사용자가 복용 중인 **약/건기식/음식 스택**을 관리
-- **복용 시간표 + 알림**으로 실행을 돕고
-- **상호작용/부작용/주의**를 근거 기반으로 요약
-- 증상 기반 **식단/레시피/영상/판매 링크** 제공
-- **PDF 리포트 + 구독 결제**로 수익화
-- PubMed 기반 **RAG 근거 검색**으로 신뢰 강화
+**DB**: `catalog_drugs`
 
 ---
 
-## 2. 구성 요소
+### 11.2 건강기능식품 검색
+```http
+GET /catalog/supplements?q=마그네슘
+```
 
-### 2.1 Frontend (Web/Mobile)
-- 기능
-  - 복용 스택 입력/관리
-  - 복용 체크(오늘)
-  - 증상 선택 → 식단/콘텐츠
-  - 리포트 구매/구독
-- 인증
-  - Supabase Auth (Google/Kakao)
-
-### 2.2 Supabase
-- Postgres + RLS
-- Storage (PDF/이미지)
-- Auth (OAuth)
-- Edge Functions(선택) 또는 서버 API
-
-### 2.3 Backend API (FastAPI or Node)
-- 역할(서버만 하는 것)
-  - 결제 웹훅 처리
-  - PubMed 수집/요약/임베딩 배치
-  - RAG 검색 엔드포인트
-  - PDF 리포트 생성(비동기)
-  - 고급 상호작용 분석(룰+RAG 혼합)
-
-### 2.4 AI Layer
-- 임베딩:
-  - PubMed abstract chunking → `pubmed_embeddings`
-- RAG:
-  - vector search → 근거 선택 → 요약/충돌 설명
-- 안전장치:
-  - 단정 금지
-  - 근거 수준 표시
-  - 의료진 상담 권고 문구
+**DB**: `catalog_supplements`
 
 ---
 
-## 3. 데이터 흐름(주요 시나리오)
+### 11.3 식재료 검색
+```http
+GET /catalog/foods?q=생강
+```
 
-### 3.1 복용 스택 등록 → 시간표 생성
-1) 사용자: 복용 항목 등록 (`user_intake_items`)
-2) 사용자: 스케줄 등록 (`intake_schedules`)
-3) 서버/앱: 오늘 타임라인 생성
-4) DB: `intake_logs`에 scheduled row 생성
-5) 앱: 푸시 알림 발송(토큰: `user_push_tokens`)
-
-### 3.2 복용 체크
-1) 사용자: “복용 완료”
-2) DB: `intake_logs.taken_at`, `status='taken'`
-3) 통계: `user_daily_stats` 갱신(선택)
-
-### 3.3 증상 기반 식단/콘텐츠
-1) 사용자: 증상 선택 (`disease_master`)
-2) DB:
-   - 재료: `symptom_ingredient_map`
-   - 레시피: `symptom_recipe_map` + `recipes`
-   - 영상: `symptom_video_map` + `content_videos`
-3) 앱: 레시피/영상/판매 링크 노출 (`ingredient_product_links`)
-
-### 3.4 조합 분석(룰 + RAG)
-1) 앱: 조합 체크 요청
-2) 1차: `interaction_facts` 룰 조회
-3) 2차(Optional): `pubmed_embeddings` 기반 RAG 검색
-4) 결과: severity/evidence_level + 요약 + 근거(pmids)
-
-### 3.5 리포트 생성(PDF)
-1) 앱: 리포트 요청 → `reports(draft)`
-2) 서버: 비동기 작업(Queue/cron/worker)
-3) 생성 완료:
-   - Storage에 PDF 업로드
-   - `reports.status='generated'`, `pdf_path` 업데이트
-
-### 3.6 결제/구독
-1) 앱: 구독 요청
-2) 서버: 결제 세션 생성
-3) PG 웹훅 → 서버 수신
-4) DB:
-   - `payments` 기록
-   - `subscriptions` 상태 업데이트
-5) 앱: 구독 상태 UI 반영
+**DB**: `foods_master`
 
 ---
 
-## 4. 보안 설계
+### 11.4 코드 조회
+```http
+GET /catalog/codes/{major_code}
+```
 
-### 4.1 RLS (핵심)
-- 개인 데이터: 본인만 접근
-- 공용 데이터: 읽기 허용, 쓰기 제한
-
-### 4.2 결제 데이터
-- 클라이언트가 결제 레코드를 직접 쓰지 않도록 설계
-- 웹훅 기반으로 `payments`, `subscriptions`만 서버가 갱신
-
-### 4.3 의료 리스크 대응
-- 진단/처방/복약 지시 표현 금지
-- 불확실성 그대로 표현
-- 위험 조합은 상담 권고
+**DB**: `catalog_major_codes`, `catalog_minor_codes`
 
 ---
 
-## 5. 운영/확장 로드맵
+## 12. Admin (서버 전용)
 
-### MVP
-- 복용 스택 + 시간표 + 체크
-- 기본 조합 체크(룰 기반)
-- 증상 기반 식단/콘텐츠
-- 구독 없이 Free로 런칭 가능(리포트는 후순위)
+> 모든 Admin API는 `service_role` 인증 필요
 
-### v1
-- PDF 리포트 + 결제
-- PubMed RAG 검색
-- 상호작용 지식베이스 확장
+### 12.1 YouTube 캐시 조회/삭제
+```http
+GET /admin/cache/youtube
+DELETE /admin/cache/youtube/{query_hash}
+```
 
-### v2
-- 가족 계정/공유
-- 개인화 강화(루틴/체크 기반)
-- B2B API(콘텐츠/근거/리포트)
+**DB**: `youtube_cache`
 
 ---
 
-## 6. 다이어그램(텍스트)
+### 12.2 Commerce 캐시 조회/삭제
+```http
+GET /admin/cache/commerce
+DELETE /admin/cache/commerce/{query_hash}
+```
 
+**DB**: `commerce_cache`
 
+---
 
-[Client]
-| Supabase Auth (OAuth)
-v
-[Supabase Postgres + RLS] <-----> [Backend API(service_role)]
-| |
-| Storage (PDF) | PubMed ingest + embeddings
-| | RAG search
-| | Billing webhook
-v v
-[Push Provider] [AI Models]
+### 12.3 레스토랑 동기화
+```http
+POST /admin/restaurants/sync
+```
+
+**Body**:
+```json
+{
+  "provider": "kakao",
+  "region": "서울"
+}
+```
+
+**DB**: `restaurants`, `restaurant_menus`
+
+---
+
+## 📊 API 요약표
+
+| 도메인 | 엔드포인트 수 | 주요 기능 |
+|--------|--------------|----------|
+| Auth/Profile | 3 | 프로필 조회/수정, 푸시 토큰 |
+| Intake Stack | 4 | 복용 항목 CRUD |
+| Schedules | 8 | 스케줄 CRUD, 복용 체크 |
+| Input Sessions | 6 | 증상/처방전 세션 관리 |
+| Interaction | 1 | 조합 분석 |
+| Symptom Content | 3 | 증상 기반 콘텐츠 |
+| Restaurant | 5 | 음식점 검색/즐겨찾기 |
+| PubMed RAG | 2 | 근거 검색 |
+| Reports | 2 | 리포트 생성/조회 |
+| Billing | 4 | 구독/결제 |
+| Catalog | 4 | 카탈로그 검색 |
+| Admin | 3 | 캐시/동기화 관리 |
+| **총계** | **45** | |
+
+---
+
+## 🔒 인증 요구사항
+
+| 엔드포인트 | 인증 |
+|------------|------|
+| `GET /plans` | Public |
+| `GET /catalog/*` | Public |
+| `GET /symptoms` | Public |
+| `/me/*`, `/intake-items/*`, `/sessions/*` | User Token |
+| `/admin/*` | Service Role |
+| `/billing/webhook` | Webhook Signature |
