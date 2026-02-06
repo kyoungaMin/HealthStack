@@ -497,3 +497,56 @@ Table commerce_cache {
   created_at timestamptz
   last_accessed_at timestamptz
 }
+
+// =========================
+// PubMed Search Strategy Maps
+// =========================
+
+Table symptom_pubmed_map {
+  id bigint [pk, increment]
+
+  symptom_id bigint [not null, ref: > disease_master.id]
+  keyword_en text [not null]
+  mesh_term text
+
+  search_role text [not null, note: "primary | secondary | context"]
+  priority int [default: 100]
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (symptom_id) [name: "idx_symptom_pubmed_map_symptom"]
+    (symptom_id, priority) [name: "idx_symptom_pubmed_map_priority"]
+    (symptom_id, keyword_en) [unique, name: "uq_symptom_pubmed_map_symptom_keyword"]
+  }
+}
+
+Table ingredient_pubmed_map {
+  id bigint [pk, increment]
+
+  rep_code text [not null, ref: > foods_master.rep_code]
+  ingredient_name_en text [not null]
+  mesh_term text
+
+  bioactive_compound text
+  compound_mesh text
+
+  search_role text [not null, note: "primary | compound | support"]
+  priority int [default: 100]
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (rep_code) [name: "idx_ingredient_pubmed_map_rep"]
+    (rep_code, priority) [name: "idx_ingredient_pubmed_map_priority"]
+
+    // Postgres에서는 UNIQUE 제약에 COALESCE 같은 표현식을 못 쓰는 경우가 많아서
+    // 실제 DB에선 expression unique index로 만들었고,
+    // DBML에서는 유사한 의미로 "논리적 유니크"를 아래처럼 문서화해 둡니다.
+    (rep_code, ingredient_name_en, bioactive_compound) [unique, name: "uq_ingredient_pubmed_map_rep_ing_compound"]
+  }
+}
