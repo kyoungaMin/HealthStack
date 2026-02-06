@@ -34,18 +34,30 @@ Table user_preferences {
 
 Table foods_master {
   rep_code text [pk]
-  rep_name text
+  rep_name text [note: "동의보감 식재료명 (예: 大棗)"]
+  modern_name text [note: "현대 한글명 (예: 대추)"]
+  name_en text [note: "영문명 (예: Jujube)"]
+  aliases text[] [note: "동의어/별칭 배열"]
+  category text [note: "분류 (과일/채소/곡물/약재/해산물/육류)"]
+  nutrients jsonb [note: "주요 영양소 정보"]
   created_at timestamptz
+  updated_at timestamptz
 }
 
 Table disease_master {
   id bigint [pk]
-  disease text
-  disease_read text
+  disease text [unique, note: "동의보감 증상 (예: 不眠)"]
+  disease_read text [note: "한글 독음"]
   disease_alias text
   disease_alias_read text
-  modern_disease text
+  modern_disease text [note: "현대 질병명 (legacy)"]
+  modern_name_ko text [note: "현대 한글명 (명확한 현대어)"]
+  name_en text [note: "영문 질병명"]
+  icd10_code text [note: "ICD-10 코드"]
+  category text [note: "분류 (수면/소화/피로/호흡/순환/피부/정신/통증)"]
+  aliases text[] [note: "동의어/별칭 배열"]
   created_at timestamptz
+  updated_at timestamptz
 }
 
 Table catalog_drugs {
@@ -130,32 +142,131 @@ Table reports {
 }
 
 Table symptom_ingredient_map {
-  id bigint [pk]
+  id bigint [pk, increment]
   symptom_id bigint [ref: > disease_master.id]
   rep_code text [ref: > foods_master.rep_code]
-  direction text
+  direction text [note: "recommend | good | neutral | caution | avoid"]
   rationale_ko text
-  priority int
+  rationale_en text
+  priority int [note: "1-100"]
+  source_ref text
+  evidence_level text [note: "traditional | clinical | empirical | theoretical"]
   created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (symptom_id)
+    (rep_code)
+    (direction)
+    (priority)
+    (symptom_id, rep_code) [unique]
+  }
 }
 
 Table recipes {
-  id bigint [pk]
+  id bigint [pk, increment]
   title text
   description text
-  ingredients jsonb
-  steps jsonb
+  ingredients jsonb [note: "재료 목록"]
+  steps jsonb [note: "조리 단계"]
+  prep_time_min int
+  cook_time_min int
+  servings int
+  difficulty text [note: "easy | medium | hard"]
   tags text[]
+  meal_type text[] [note: "breakfast | lunch | dinner | snack | tea"]
+  nature text [note: "성질 (온/평/량/한)"]
+  flavor text[] [note: "맛 (산/고/감/신/함)"]
+  target_organs text[] [note: "귀경 (심/간/비/폐/신)"]
+  source_ref text
   created_at timestamptz
   updated_at timestamptz
+
+  indexes {
+    (tags) [note: "GIN"]
+    (meal_type) [note: "GIN"]
+    (title)
+  }
 }
 
 Table symptom_recipe_map {
-  id bigint [pk]
+  id bigint [pk, increment]
   symptom_id bigint [ref: > disease_master.id]
   recipe_id bigint [ref: > recipes.id]
-  meal_slot text
+  meal_slot text [note: "breakfast | lunch | dinner | snack | tea | anytime"]
   priority int
+  rationale_ko text
+  best_time text
+  frequency text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (symptom_id)
+    (recipe_id)
+    (meal_slot)
+    (symptom_id, recipe_id) [unique]
+  }
+}
+
+// ... existing tables ...
+
+// =========================
+// PubMed & MeSH Mapping
+// =========================
+
+Table modern_to_mesh_map {
+  id bigint [pk, increment]
+  modern_disease_id bigint [ref: > disease_master.id]
+  mesh_term text
+  mesh_ui text
+  mesh_tree text
+  search_role text [note: "primary | secondary | context"]
+  priority int
+  note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (modern_disease_id, mesh_term) [unique]
+    (modern_disease_id)
+  }
+}
+
+Table symptom_pubmed_map {
+  id bigint [pk, increment]
+  symptom_id bigint [ref: > disease_master.id]
+  keyword_en text
+  mesh_term text
+  search_role text [note: "primary | secondary | context"]
+  priority int
+  note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (symptom_id)
+    (symptom_id, keyword_en) [unique]
+  }
+}
+
+Table ingredient_pubmed_map {
+  id bigint [pk, increment]
+  rep_code text [ref: > foods_master.rep_code]
+  ingredient_name_en text
+  mesh_term text
+  bioactive_compound text
+  compound_mesh text
+  search_role text [note: "primary | compound | support"]
+  priority int
+  note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (rep_code)
+    (rep_code, ingredient_name_en, bioactive_compound) [unique]
+  }
 }
 
 Table content_videos {
@@ -498,6 +609,93 @@ Table commerce_cache {
   last_accessed_at timestamptz
 }
 
+/// =========================
+// TKM (동의보감) Symptoms Master
+// =========================
+
+Table tkm_symptom_master {
+  id bigint [pk, increment]
+
+  tkm_code text [unique, note: "내부 코드(있으면)"]
+  hanja text [note: "한자 표기"]
+  korean text [not null, note: "한글 표기(현대어/원문 포함)"]
+  name_en text [note: "영문명 (예: Insomnia, Dyspepsia)"]
+  aliases text[] [default: `'{}'::text[]`, note: "동의어/표기 변형"]
+  description text [note: "동의보감 요약/정의"]
+
+  category text [note: "예: 소화/호흡/수면/통증 등"]
+  pattern_tags text[] [default: `'{}'::text[]`, note: "예: 한/열/허/실/담/어혈 등"]
+
+  source_book text [note: "예: 동의보감"]
+  source_ref text [note: "권/편/문장/페이지 등"]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (category) [name: "idx_tkm_symptom_master_category"]
+    (name_en) [name: "idx_tkm_symptom_master_name_en"]
+    // GIN 인덱스는 DBML에서 표현이 제한적일 수 있어 문서화만 남김
+    (pattern_tags) [name: "idx_tkm_symptom_master_tags", note: "GIN(pattern_tags)"]
+  }
+}
+
+
+// =========================
+// Mapping: TKM -> Modern Disease
+// =========================
+
+Table tkm_to_modern_map {
+  id bigint [pk, increment]
+
+  tkm_symptom_id bigint [not null, ref: > tkm_symptom_master.id]
+  modern_disease_id bigint [not null, ref: > disease_master.id]
+
+  mapping_strength text [not null, note: "high | medium | low"]
+  mapping_type text [not null, note: "equivalent | overlap | differential | context"]
+
+  evidence_note text [note: "왜 이렇게 매핑했는지(설명/근거)"]
+  reviewer text [note: "검수자(약사/한의사/내부)"]
+  reviewed_at timestamptz
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (tkm_symptom_id, modern_disease_id) [unique, name: "uq_tkm_to_modern_map"]
+    (tkm_symptom_id) [name: "idx_tkm_to_modern_tkm"]
+    (modern_disease_id) [name: "idx_tkm_to_modern_modern"]
+  }
+}
+
+
+// =========================
+// Mapping: Modern Disease -> MeSH
+// =========================
+
+Table modern_to_mesh_map {
+  id bigint [pk, increment]
+
+  modern_disease_id bigint [not null, ref: > disease_master.id]
+
+  mesh_term text [not null, note: "예: Sleep Initiation and Maintenance Disorders"]
+  mesh_ui text [note: "예: D012893"]
+  mesh_tree text [note: "예: F03.870.400"]
+
+  search_role text [not null, note: "primary | secondary | context"]
+  priority int [default: 100]
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (modern_disease_id, mesh_term) [unique, name: "uq_modern_to_mesh_map"]
+    (modern_disease_id, priority) [name: "idx_modern_to_mesh_modern"]
+  }
+}
+
+
 // =========================
 // PubMed Search Strategy Maps
 // =========================
@@ -527,6 +725,7 @@ Table ingredient_pubmed_map {
   id bigint [pk, increment]
 
   rep_code text [not null, ref: > foods_master.rep_code]
+
   ingredient_name_en text [not null]
   mesh_term text
 
@@ -544,9 +743,8 @@ Table ingredient_pubmed_map {
     (rep_code) [name: "idx_ingredient_pubmed_map_rep"]
     (rep_code, priority) [name: "idx_ingredient_pubmed_map_priority"]
 
-    // Postgres에서는 UNIQUE 제약에 COALESCE 같은 표현식을 못 쓰는 경우가 많아서
-    // 실제 DB에선 expression unique index로 만들었고,
-    // DBML에서는 유사한 의미로 "논리적 유니크"를 아래처럼 문서화해 둡니다.
+    // 실제 DB는 (rep_code, ingredient_name_en, coalesce(bioactive_compound,'')) expression unique index.
+    // DBML은 표현식 인덱스 제약이 있어 "논리적 유니크"로 문서화.
     (rep_code, ingredient_name_en, bioactive_compound) [unique, name: "uq_ingredient_pubmed_map_rep_ing_compound"]
   }
 }

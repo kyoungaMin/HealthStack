@@ -3,7 +3,7 @@
 > **범위**: Health Stack 전체 스키마 — 사용자/복용관리/콘텐츠/RAG/결제/입력세션/레스토랑  
 > **용도**: 전체 구조 이해 (온보딩/아키텍처 리뷰)  
 > **소스**: [`schema.integrated.dbml`](./schema.integrated.dbml)  
-> **최종 업데이트**: 2026-02-04
+> **최종 업데이트**: 2026-02-06
 
 ---
 
@@ -83,6 +83,15 @@ erDiagram
   YOUTUBE_CACHE { bigint id PK }
   COMMERCE_CACHE { bigint id PK }
 
+  %% ===== TKM (동의보감) 레이어 =====
+  TKM_SYMPTOM_MASTER { bigint id PK }
+  TKM_TO_MODERN_MAP { bigint id PK }
+  MODERN_TO_MESH_MAP { bigint id PK }
+
+  %% ===== PubMed 검색 전략 =====
+  SYMPTOM_PUBMED_MAP { bigint id PK }
+  INGREDIENT_PUBMED_MAP { bigint id PK }
+
   %% ===== 관계 정의 =====
   
   %% 사용자 관계
@@ -136,6 +145,15 @@ erDiagram
   
   %% 카탈로그 코드 관계
   CATALOG_MAJOR_CODES ||--o{ CATALOG_MINOR_CODES : "1:N"
+  
+  %% TKM 관계
+  TKM_SYMPTOM_MASTER ||--o{ TKM_TO_MODERN_MAP : "1:N"
+  DISEASE_MASTER ||--o{ TKM_TO_MODERN_MAP : "0:N"
+  DISEASE_MASTER ||--o{ MODERN_TO_MESH_MAP : "1:N"
+  
+  %% PubMed 검색 전략 관계
+  DISEASE_MASTER ||--o{ SYMPTOM_PUBMED_MAP : "1:N"
+  FOODS_MASTER ||--o{ INGREDIENT_PUBMED_MAP : "1:N"
 ```
 
 ---
@@ -252,6 +270,25 @@ erDiagram
 
 ---
 
+### 1️⃣1️⃣ TKM (동의보감) 레이어 (3개)
+
+| 테이블 | PK | 설명 |
+|--------|-----|------|
+| `tkm_symptom_master` | bigint id | 동의보감 증상 마스터 |
+| `tkm_to_modern_map` | bigint id | TKM → 현대질환 매핑 |
+| `modern_to_mesh_map` | bigint id | 현대질환 → MeSH 매핑 |
+
+---
+
+### 1️⃣2️⃣ PubMed 검색 전략 (2개)
+
+| 테이블 | PK | 설명 |
+|--------|-----|------|
+| `symptom_pubmed_map` | bigint id | 증상별 PubMed 검색 전략 |
+| `ingredient_pubmed_map` | bigint id | 재료별 PubMed 검색 전략 |
+
+---
+
 ## 📈 테이블 통계
 
 | 도메인 | 테이블 수 |
@@ -266,7 +303,9 @@ erDiagram
 | 레스토랑 추천 | 7 |
 | 카탈로그 코드 | 2 |
 | 캐시 테이블 | 2 |
-| **총계** | **40** |
+| TKM (동의보감) | 3 |
+| PubMed 검색 전략 | 2 |
+| **총계** | **45** |
 
 ---
 

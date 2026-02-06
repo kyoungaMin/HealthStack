@@ -1,6 +1,6 @@
 # Health Stack 통합 ERD
 
-> 자동 생성일: 2026-02-04  
+> 자동 생성일: 2026-02-06  
 > 소스: `schema.integrated.dbml`
 
 ## 📊 전체 ERD 다이어그램
@@ -463,6 +463,75 @@ erDiagram
         timestamptz created_at
         timestamptz last_accessed_at
     }
+    
+    %% ===== TKM (동의보감) 레이어 =====
+    tkm_symptom_master {
+        bigint id PK
+        text tkm_code
+        text hanja
+        text korean
+        text[] aliases
+        text description
+        text category
+        text[] pattern_tags
+        text source_book
+        text source_ref
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    tkm_to_modern_map {
+        bigint id PK
+        bigint tkm_symptom_id FK
+        bigint modern_disease_id FK
+        text mapping_strength
+        text mapping_type
+        text evidence_note
+        text reviewer
+        timestamptz reviewed_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    modern_to_mesh_map {
+        bigint id PK
+        bigint modern_disease_id FK
+        text mesh_term
+        text mesh_ui
+        text mesh_tree
+        text search_role
+        int priority
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    %% ===== PubMed 검색 전략 =====
+    symptom_pubmed_map {
+        bigint id PK
+        bigint symptom_id FK
+        text keyword_en
+        text mesh_term
+        text search_role
+        int priority
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    
+    ingredient_pubmed_map {
+        bigint id PK
+        text rep_code FK
+        text ingredient_name_en
+        text mesh_term
+        text bioactive_compound
+        text compound_mesh
+        text search_role
+        int priority
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
 
     %% ===== 관계 정의 =====
     auth_users ||--|| user_profiles : "has"
@@ -518,6 +587,15 @@ erDiagram
     restaurant_search_requests ||--o{ user_restaurant_visit_logs : "triggers"
     
     catalog_major_codes ||--o{ catalog_minor_codes : "contains"
+    
+    %% TKM 관계
+    tkm_symptom_master ||--o{ tkm_to_modern_map : "maps"
+    disease_master ||--o{ tkm_to_modern_map : "mapped_from"
+    disease_master ||--o{ modern_to_mesh_map : "has_mesh"
+    
+    %% PubMed 검색 전략 관계
+    disease_master ||--o{ symptom_pubmed_map : "search"
+    foods_master ||--o{ ingredient_pubmed_map : "search"
 ```
 
 ---
@@ -604,6 +682,19 @@ erDiagram
 | `youtube_cache` | YouTube API 응답 캐시 |
 | `commerce_cache` | 커머스 API 응답 캐시 |
 
+### 1️⃣1️⃣ TKM (동의보감) 레이어
+| 테이블 | 설명 |
+|--------|------|
+| `tkm_symptom_master` | 동의보감 증상 마스터 (한자/한글 표기, 카테고리, 패턴 태그) |
+| `tkm_to_modern_map` | TKM 증상 → 현대 질환 매핑 (강도, 유형, 근거) |
+| `modern_to_mesh_map` | 현대 질환 → MeSH 용어 매핑 |
+
+### 1️⃣2️⃣ PubMed 검색 전략
+| 테이블 | 설명 |
+|--------|------|
+| `symptom_pubmed_map` | 증상별 PubMed 검색 키워드/MeSH 매핑 |
+| `ingredient_pubmed_map` | 재료별 PubMed 검색 (성분명, 활성화합물, MeSH) |
+
 ---
 
 ## 🔗 주요 관계 요약
@@ -650,7 +741,24 @@ erDiagram
         │
         ├── symptom_ingredient_map ── foods_master
         ├── symptom_recipe_map ── recipes
-        └── symptom_video_map ── content_videos
+        ├── symptom_video_map ── content_videos
+        ├── tkm_to_modern_map ── tkm_symptom_master
+        ├── modern_to_mesh_map
+        └── symptom_pubmed_map
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│                  tkm_symptom_master (동의보감 중심)                │
+└─────────────────────────────────────────────────────────────────┘
+        │
+        └── tkm_to_modern_map ── disease_master
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│               foods_master (식재료-PubMed 연동)                   │
+└─────────────────────────────────────────────────────────────────┘
+        │
+        └── ingredient_pubmed_map
 ```
 
 ---

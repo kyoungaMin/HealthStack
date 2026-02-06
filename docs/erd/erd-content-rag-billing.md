@@ -3,7 +3,7 @@
 > **범위**: 증상 기반 큐레이션(식재료/레시피/영상) + 커머스 링크 + 상호작용 지식베이스 + PubMed RAG + 결제/구독 + 캐시  
 > **원칙**: 공용 데이터는 읽기 허용, 쓰기는 서버(service_role)에서 관리 권장  
 > **소스**: [`schema.integrated.dbml`](./schema.integrated.dbml)  
-> **최종 업데이트**: 2026-02-04
+> **최종 업데이트**: 2026-02-06
 
 ---
 
@@ -128,6 +128,64 @@ erDiagram
     timestamptz created_at
   }
 
+  %% ===== TKM (동의보감) 매핑 =====
+  TKM_SYMPTOM_MASTER {
+    bigint id PK
+    text tkm_code
+    text hanja
+    text korean
+    text_array aliases
+    text description
+    text category
+    text_array pattern_tags
+    text source_book
+    text source_ref
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  TKM_TO_MODERN_MAP {
+    bigint id PK
+    bigint tkm_symptom_id FK
+    bigint modern_disease_id FK
+    text mapping_strength "high | medium | low"
+    text mapping_type "equivalent | overlap | differential | context"
+    text evidence_note
+    text reviewer
+    timestamptz reviewed_at
+  }
+
+  MODERN_TO_MESH_MAP {
+    bigint id PK
+    bigint modern_disease_id FK
+    text mesh_term
+    text mesh_ui
+    text mesh_tree
+    text search_role "primary | secondary | context"
+    int priority
+  }
+
+  %% ===== PubMed 검색 전략 =====
+  SYMPTOM_PUBMED_MAP {
+    bigint id PK
+    bigint symptom_id FK
+    text keyword_en
+    text mesh_term
+    text search_role "primary | secondary | context"
+    int priority
+  }
+
+  INGREDIENT_PUBMED_MAP {
+    bigint id PK
+    text rep_code FK
+    text ingredient_name_en
+    text mesh_term
+    text bioactive_compound
+    text compound_mesh
+    text search_role "primary | compound | support"
+    int priority
+  }
+
   %% ===== 결제 / 구독 =====
   PLANS {
     bigint id PK
@@ -199,6 +257,15 @@ erDiagram
 
   PUBMED_PAPERS ||--o{ PUBMED_EMBEDDINGS : "1:N"
   PLANS ||--o{ SUBSCRIPTIONS : "1:N (by code)"
+  
+  %% TKM 관계
+  TKM_SYMPTOM_MASTER ||--o{ TKM_TO_MODERN_MAP : "1:N"
+  DISEASE_MASTER ||--o{ TKM_TO_MODERN_MAP : "0:N"
+  DISEASE_MASTER ||--o{ MODERN_TO_MESH_MAP : "1:N"
+  
+  %% PubMed 검색 전략 관계
+  DISEASE_MASTER ||--o{ SYMPTOM_PUBMED_MAP : "1:N"
+  FOODS_MASTER ||--o{ INGREDIENT_PUBMED_MAP : "1:N"
 ```
 
 ---
@@ -237,7 +304,26 @@ erDiagram
 
 ---
 
-### 4️⃣ 결제 / 구독
+### 4️⃣ TKM (동의보감) 매핑
+
+| 테이블 | PK | 설명 |
+|--------|-----|------|
+| `tkm_symptom_master` | bigint id | 동의보감 증상 마스터 (한자/한글/카테고리/패턴) |
+| `tkm_to_modern_map` | bigint id | TKM 증상 → 현대 질환 매핑 |
+| `modern_to_mesh_map` | bigint id | 현대 질환 → MeSH 용어 매핑 |
+
+---
+
+### 5️⃣ PubMed 검색 전략
+
+| 테이블 | PK | 설명 |
+|--------|-----|------|
+| `symptom_pubmed_map` | bigint id | 증상별 PubMed 검색 키워드/MeSH 매핑 |
+| `ingredient_pubmed_map` | bigint id | 재료별 PubMed 검색 (성분명/활성화합물/MeSH) |
+
+---
+
+### 6️⃣ 결제 / 구독
 
 | 테이블 | PK | 설명 |
 |--------|-----|------|
@@ -247,7 +333,7 @@ erDiagram
 
 ---
 
-### 5️⃣ 캐시 테이블
+### 7️⃣ 캐시 테이블
 
 | 테이블 | PK | 설명 |
 |--------|-----|------|
@@ -276,6 +362,19 @@ foods_master
 pubmed_papers
     │
     └──── (1:N) ──── pubmed_embeddings (pgvector)
+
+
+tkm_symptom_master
+    │
+    └──── (1:N) ──── tkm_to_modern_map ──── (N:1) ──── disease_master
+                                                     │
+                                                     ├──── (1:N) ──── modern_to_mesh_map
+                                                     └──── (1:N) ──── symptom_pubmed_map
+
+
+foods_master
+    │
+    └──── (1:N) ──── ingredient_pubmed_map
 
 
 plans
