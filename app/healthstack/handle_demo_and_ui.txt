@@ -1,0 +1,94 @@
+  const handleDemo = () => {
+    setAnalysisResult(`안녕하세요! 속이 더부룩하고 어지러우시군요. 복용 중인 혈압약 때문일 가능성이 있어 보여요.
+
+💊 **현재 상태 이해**
+혈압약 성분이 위장을 자극하면 일시적으로 소화기능으로 가는 혈류에 변화를 줄 수 있습니다. 걱정하실 정도는 아니지만 갑자기 일어서면 더 어지러울 수 있으니 주의가 필요해요.
+
+⚠️ **주의사항**
+식사 후 바로 눕지 마시고 30분 정도 가벼운 산책을 권해드려요. 어지러움이 심해지면 주치의와 상담해보시는 것이 좋겠습니다.
+
+🌿 **동의보감 생활 가이드**
+동의보감에서는 이런 증상을 '무'와 '생강'을 권장합니다. 무는 천연 소화제 역할을 하고, 생강은 속의 냉기를 몰아내고 위를 편안하게 하는 데 도움이 됩니다.
+
+📍 **추천 선택지**
+근처에 소화가 편한 '죽 전문점'이나 '한식'을 지도에서 찾아보시는 건 어떨까요?`);
+    setGroundingLinks([
+      { title: "약물 부작용 정보 센터", uri: "#" },
+      { title: "동의보감 식이요법 가이드", uri: "#" }
+    ]);
+    setRecommendedVideos([
+      { title: "속이 편해지는 무나물 맛있게 만드는 법", uri: "https://www.youtube.com/results?search_query=무나물레시피" },
+      { title: "몸을 따뜻하게 하는 생강차 만들기", uri: "https://www.youtube.com/results?search_query=생강차만들기" }
+    ]);
+    setShowResult(true);
+  };
+
+  const speakResult = async (text: string) => {
+    initAudio();
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio && audioContextRef.current) {
+        const audioBuffer = await decodeAudioData(decode(base64Audio), audioContextRef.current, 24000, 1);
+        const source = audioContextRef.current.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContextRef.current.destination);
+        source.start();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  return (
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#f8fafc] shadow-2xl overflow-hidden relative border-x border-gray-100">
+
+      {/* Header */}
+      <header className="p-6 bg-white flex items-center justify-between border-b border-slate-100 sticky top-0 z-50">
+        <div>
+          <h1 className="text-xl font-extrabold text-emerald-600 flex items-center gap-2">
+            <span className="text-2xl">⚕️</span> Health Stack
+          </h1>
+          <p className="text-[10px] text-slate-400 font-medium tracking-wider">내 몸을 위한 친절한 설명서</p>
+        </div>
+        <button onClick={() => { setAnalysisResult(null); setShowResult(false); setActiveTab('home'); }} className="text-slate-400 text-sm font-medium">초기화</button>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto p-5 pb-32">
+
+        {activeTab === 'home' && !showResult && (
+          <div className="space-y-6 animate-in">
+            <div className="gradient-bg p-8 rounded-[40px] text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
+              <div className="relative z-10">
+                <h2 className="text-3xl font-gaegu font-bold mb-3">반가워요! 민지님</h2>
+                <p className="text-emerald-50 opacity-95 leading-relaxed text-lg">
+                  오늘 몸 상태는 어떠신가요?<br />
+                  사소한 증상이라도 괜찮아요.<br />
+                  제가 찬찬히 들어드릴게요.
+                </p>
+              </div>
+              <div className="absolute -bottom-6 -right-6 text-9xl opacity-10 rotate-12">🩺</div>
+            </div>
+
+            <div className="health-card p-6 border-2 border-emerald-50">
+              <h3 className="font-extrabold text-slate-800 mb-4 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                지금 궁금한 점을 적어주세요
+              </h3>
+              <div className="space-y-4">
+                <textarea
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value)}
+                  placeholder="예: 혈압약을 먹고 있는데 자꾸 어지러워요."
+                  className="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none resize-none placeholder:text-slate-300"
+                />

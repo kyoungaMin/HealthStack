@@ -1,0 +1,234 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import './index.css';
+
+// --- Backend API Types ---
+interface Ingredient {
+  rep_code: string;
+  modern_name: string;
+  rationale_ko: string;
+  direction: string;
+  evidence_level: string;
+  pubmed_papers: { pmid: string; title: string; journal: string; pub_year: number; url: string }[];
+  youtube_video: { video_id: string; title: string; channel: string; thumbnail_url: string; url: string } | null;
+  tip: string;
+}
+
+interface BackendResponse {
+  symptom_summary: string;
+  confidence_level: 'high' | 'medium' | 'general';
+  source: 'database' | 'similarity' | 'ai_generated';
+  ingredients: Ingredient[];
+  cautions: string[];
+  matched_symptom_name: string | null;
+  disclaimer: string;
+}
+
+interface Medication {
+  id: string;
+  name: string;
+  time: string; // "HH:MM" format
+  taken: boolean;
+}
+
+const BACKEND_URL = 'http://localhost:8000';
+
+// --- Golden Questions Data ---
+const GOLDEN_QUESTIONS = [
+  "식후 더부룩하고 트림이 잦아. 소화에 좋은 음식은?",
+  "속쓰림이 심한데 매운 것 대신 먹을 만한 레시피는?",
+  "변비가 심해. 커피 대신 마실 있는 차 추천해줘.",
+  "몸이 차고 손발이 자주 저린데 먹으면 좋은 음식?",
+  "스트레스 받으면 자꾸 폭식하게 돼. 식욕 조절에 도움되는 것?",
+  "오후만 되면 피로가 너무 심해. 카페인 말고 도움되는 것?",
+  "감기 기운이 있어. 목이 따갑고 열은 없는데 음식 추천해줘.",
+  "비염이 심한데 코가 편해지는 음식과 좋은 습관 알려줘.",
+  "고혈압에 좋은 식단 추천좀.",
+  "다이어트 중인데 밤에 야식 땡길 때 먹어도 되는 간식은?",
+  "혈당 관리가 필요한데 밥 먹을 때 혈당 덜 오르게 하는 조합은?"
+];
+
+// --- App Component ---
+
+const App = () => {
+  const [activeTab, setActiveTab] = useState<'home' | 'stack' | 'map' | 'report'>('home');
+  const [loading, setLoading] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [backendResult, setBackendResult] = useState<BackendResponse | null>(null);
+  const [groundingLinks, setGroundingLinks] = useState<{ title: string, uri: string }[]>([]);
+  const [recommendedVideos, setRecommendedVideos] = useState<{ title: string, uri: string }[]>([]);
+  const [userInput, setUserInput] = useState('');
+  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [randomQuestions, setRandomQuestions] = useState<string[]>([]);
+  
+  // Medication States
+  const [medications, setMedications] = useState<Medication[]>(() => {
+    const saved = localStorage.getItem('medications');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newMedName, setNewMedName] = useState('');
+  const [newMedTime, setNewMedTime] = useState('');
+  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      });
+    }
+    setRandomQuestions(GOLDEN_QUESTIONS.sort(() => 0.5 - Math.random()).slice(0, 4));
+  }, []);
+
+  // Save medications to local storage
+  useEffect(() => {
+    localStorage.setItem('medications', JSON.stringify(medications));
+  }, [medications]);
+
+  // Check for notifications every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      
+      medications.forEach(med => {
+        if (med.time === currentTime && !med.taken) {
+          if (Notification.permission === 'granted') {
+            new Notification('💊 복용 알림', {
+              body: `${med.name} 복용할 시간이에요!`,
+              icon: '/vite.svg'
+            });
+          }
+        }
+      });
+    }, 60000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, [medications]);
+
+  const requestNotificationPermission = async () => {
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  };
+
+  const addMedication = () => {
+    if (!newMedName || !newMedTime) return;
+    const newMed: Medication = {
+      id: Date.now().toString(),
+      name: newMedName,
+      time: newMedTime,
+      taken: false
+    };
+    setMedications([...medications, newMed]);
+    setNewMedName('');
+    setNewMedTime('');
+  };
+
+  const toggleMedication = (id: string) => {
+    setMedications(medications.map(med => 
+      med.id === id ? { ...med, taken: !med.taken } : med
+    ));
+  };
+
+  const deleteMedication = (id: string) => {
+    setMedications(medications.filter(med => med.id !== id));
+  };
+
+  const initAudio = () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+    }
+  };
+
+  const handleAnalysis = async (query: string) => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setAnalysisResult(null);
+    setBackendResult(null);
+    setGroundingLinks([]);
+    setRecommendedVideos([]);
+    setShowResult(false);
+
+    try {
+      const backendRes = await fetch(`${BACKEND_URL}/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symptom: query })
+      });
+
+      if (backendRes.ok) {
+        const data: BackendResponse = await backendRes.json();
+        setBackendResult(data);
+
+        const videos = data.ingredients
+          .filter(ing => ing.youtube_video)
+          .map(ing => ({
+            title: ing.youtube_video!.title,
+            uri: ing.youtube_video!.url
+          }));
+        setRecommendedVideos(videos);
+
+        const papers = data.ingredients
+          .flatMap(ing => ing.pubmed_papers)
+          .slice(0, 3)
+          .map(p => ({ title: p.title, uri: p.url }));
+        setGroundingLinks(papers);
+
+        if (data.source !== 'ai_generated' && data.ingredients.length > 0) {
+          const summary = `${data.symptom_summary}\n\n🌿 **동의보감 추천 식재료**\n${data.ingredients.map(ing =>
+            `👉 **${ing.modern_name}**: ${ing.rationale_ko}\n  💡 ${ing.tip}`
+          ).join('\n\n')}\n\n${data.disclaimer}`;
+          setAnalysisResult(summary);
+          setShowResult(true);
+          return;
+        }
+      }
+
+      const ai = new GoogleGenerativeAI(process.env.API_KEY!);
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent(`사용자의 증상이나 질문: "${query}". 
+        이 내용을 바탕으로 (1) 현재 상태를 친절하게 설명해주고 
+        (2) 현대 의학적 주의사항과 (3) 동의보감 기반 또는 도움이 되는 구체적인 식재료 2-3개를 추천해줘. 
+        말투는 아주 따뜻한 이웃집 약사처럼 해줘. 
+        답변은 3~4개의 섹션으로 나눠서 작성해줘.`);
+
+      const text = result.response.text();
+      setAnalysisResult(text);
+      setShowResult(true);
+
+    } catch (error) {
+      console.error(error);
+      setAnalysisResult("🙏 정보를 불러오는 중에 작은 문제가 생겼어요. 다시 한번 말씀해 주시겠어요?");
+      setShowResult(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemo = () => {
+    setAnalysisResult(`안녕하세요! 속이 더부룩하고 어지러우시군요. 복용 중인 혈압약 때문일 가능성이 있어 보여요.
+
+💊 **현재 상태 이해**
+혈압약 성분이 위장을 자극하면 일시적으로 소화기능으로 가는 혈류에 변화를 줄 수 있습니다. 걱정하실 정도는 아니지만 갑자기 일어서면 더 어지러울 수 있으니 주의가 필요해요.
+
+⚠️ **주의사항**
+식사 후 바로 눕지 마시고 30분 정도 가벼운 산책을 권해드려요. 어지러움이 심해지면 주치의와 상담해보시는 것이 좋겠습니다.
+
+🌿 **동의보감 생활 가이드**
+동의보감에서는 이런 증상을 '무'와 '생강'을 권장합니다. 무는 천연 소화제 역할을 하고, 생강은 속의 냉기를 몰아내고 위를 편안하게 하는 데 도움이 됩니다.
+
+📍 **추천 선택지**
+근처에 소화가 편한 '죽 전문점'이나 '한식'을 지도에서 찾아보시는 건 어떨까요?`);
+    setGroundingLinks([
+      { title: "약물 부작용 정보 센터", uri: "#" },
+      { title: "동의보감 식이요법 가이드", uri: "#" }
+    ]);
+    setRecommendedVideos([
+      { title: "속이 편해지는 무나물 맛있게 만드는 법", uri: "https://www.youtube.com/results?search_query=무나물레시피" },
+      { title: "몸을 따뜻하게 하는 생강차 만들기", uri: "https://www.youtube.com/results?search_query=생강차만들기" }
+    ]);
+    setShowResult(true);
+  };

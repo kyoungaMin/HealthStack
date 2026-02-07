@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌱 Health Stack | 내 몸 설명서</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nanum Gothic', sans-serif;
+        }
+
+        .gradient-bg {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .health-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen">
+    <div id="app" class="max-w-md mx-auto bg-white min-h-screen shadow-xl">
+        <!-- Header -->
+        <header class="p-6 bg-white flex items-center justify-between border-b border-slate-100 sticky top-0 z-50">
+            <div>
+                <h1 class="text-xl font-bold text-emerald-600 flex items-center gap-2">
+                    <span class="text-2xl">🌱</span> Health Stack
+                </h1>
+                <p class="text-[10px] text-slate-400 font-medium">내 몸을 위한 친절한 설명서</p>
+            </div>
+            <button onclick="resetApp()" class="text-slate-400 text-sm font-medium">초기화</button>
+        </header>
+
+        <!-- Main Content -->
+        <main class="p-5 pb-32">
+            <!-- Welcome Section -->
+            <div id="welcome-section" class="space-y-6 animate-in">
+                <div class="gradient-bg p-8 rounded-[40px] text-white shadow-xl relative overflow-hidden">
+                    <h2 class="text-3xl font-bold mb-3">반가워요! 👋</h2>
+                    <p class="text-emerald-50 opacity-95 leading-relaxed text-lg">
+                        오늘 몸 상태는 어떠신가요?<br />
+                        사소한 증상이라도 괜찮아요.<br />
+                        제가 찬찬히 들어드릴게요.
+                    </p>
+                    <div class="absolute -bottom-6 -right-6 text-9xl opacity-10 rotate-12">🌿</div>
+                </div>
+
+                <div class="health-card p-6 border-2 border-emerald-50">
+                    <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        지금 궁금한 점을 적어주세요
+                    </h3>
+                    <textarea id="symptom-input" placeholder="예: 요즘 잠을 잘 못 자요"
+                        class="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none resize-none placeholder:text-slate-300"></textarea>
+                    <div class="flex gap-2 mt-4">
+                        <button onclick="analyzeSymptom()" id="analyze-btn"
+                            class="flex-1 gradient-bg text-white font-bold py-4 rounded-2xl shadow-lg disabled:opacity-50 transition-all hover:brightness-110 active:scale-[0.98]">
+                            분석 시작하기
+                        </button>
+                        <button onclick="fillDemo()"
+                            class="px-4 bg-slate-100 text-slate-500 rounded-2xl font-bold hover:bg-slate-200 transition-colors">
+                            💡 예시
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Section -->
+            <div id="loading-section" class="hidden animate-in">
+                <div class="text-center py-20">
+                    <div class="loading mb-4"></div>
+                    <p class="text-emerald-600 font-bold">동의보감 기록을 살펴보고 있어요...</p>
+                </div>
+            </div>
+
+            <!-- Result Section -->
+            <div id="result-section" class="hidden animate-in space-y-5">
+                <div class="flex items-center gap-2 mb-2">
+                    <button onclick="resetApp()"
+                        class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm border border-slate-100">←</button>
+                    <h2 class="font-bold text-slate-800">오늘의 내 몸 리포트</h2>
+                </div>
+
+                <div class="health-card overflow-hidden">
+                    <div class="p-6 bg-emerald-50/50 border-b border-emerald-100 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">👩‍⚕️</span>
+                            <div>
+                                <h3 class="font-bold text-emerald-800">이웃집 약사의 소견</h3>
+                                <div id="confidence-badge" class="mt-1"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-6 space-y-4">
+                        <div id="symptom-summary" class="text-slate-700 leading-relaxed"></div>
+
+                        <div id="ingredients-section" class="pt-4 border-t border-slate-100">
+                            <h4 class="text-xs font-bold text-slate-500 mb-4">🥬 동의보감 추천 식재료</h4>
+                            <div id="ingredients-list" class="space-y-3"></div>
+                        </div>
+
+                        <div id="cautions-section" class="hidden pt-4 border-t border-slate-100">
+                            <h4 class="text-xs font-bold text-amber-600 mb-2">⚠️ 주의사항</h4>
+                            <ul id="cautions-list" class="text-sm text-amber-700 space-y-1"></ul>
+                        </div>
+
+                        <p id="disclaimer" class="text-xs text-slate-400 pt-4 border-t border-slate-100"></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:8000';
+
+        function fillDemo() {
+            document.getElementById('symptom-input').value = '요즘 잠을 잘 못 자요';
+        }
+
+        function resetApp() {
+            document.getElementById('welcome-section').classList.remove('hidden');
+            document.getElementById('loading-section').classList.add('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+            document.getElementById('symptom-input').value = '';
+        }
+
+        async function analyzeSymptom() {
+            const symptom = document.getElementById('symptom-input').value.trim();
+            if (!symptom) {
+                alert('증상을 입력해주세요!');
+                return;
+            }
+
+            // Show loading
+            document.getElementById('welcome-section').classList.add('hidden');
+            document.getElementById('loading-section').classList.remove('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symptom: symptom })
+                });
+
+                if (!response.ok) throw new Error('API 호출 실패');
+
+                const data = await response.json();
+                displayResult(data);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('분석 중 오류가 발생했습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
+                resetApp();
+            }
+        }
+
+        function displayResult(data) {
+            // Hide loading, show result
+            document.getElementById('loading-section').classList.add('hidden');
+            document.getElementById('result-section').classList.remove('hidden');
+
+            // Confidence badge
+            const badgeEl = document.getElementById('confidence-badge');
+            const badgeColors = {
+                'database': 'bg-emerald-100 text-emerald-700',
+                'similarity': 'bg-blue-100 text-blue-700',
+                'ai_generated': 'bg-amber-100 text-amber-700'
+            };
+            const badgeLabels = {
+                'database': '🔬 동의보감 근거',
+                'similarity': '📊 유사 증상 기반',
+                'ai_generated': '💡 AI 분석'
+            };
+            badgeEl.innerHTML = `<span class="text-[10px] px-2 py-0.5 rounded-full font-bold ${badgeColors[data.source] || 'bg-slate-100 text-slate-600'}">${badgeLabels[data.source] || data.source}</span>`;
+
+            // Symptom summary
+            document.getElementById('symptom-summary').textContent = data.symptom_summary;
+
+            // Ingredients
+            const ingredientsList = document.getElementById('ingredients-list');
+            ingredientsList.innerHTML = '';
+
+            if (data.ingredients && data.ingredients.length > 0) {
+                data.ingredients.forEach(ing => {
+                    const div = document.createElement('div');
+                    div.className = 'p-4 bg-slate-50 rounded-2xl';
+                    div.innerHTML = `
+                        <div class="flex items-start gap-3">
+                            <span class="text-2xl">🌿</span>
+                            <div class="flex-1">
+                                <h5 class="font-bold text-slate-800">${ing.modern_name}</h5>
+                                <p class="text-sm text-slate-600 mt-1">${ing.rationale_ko}</p>
+                                <p class="text-xs text-emerald-600 mt-2">💡 ${ing.tip}</p>
+                            </div>
+                        </div>
+                    `;
+                    ingredientsList.appendChild(div);
+                });
+            } else {
+                ingredientsList.innerHTML = '<p class="text-slate-400 text-sm">추천할 식재료가 없습니다.</p>';
+            }
+
+            // Cautions
+            if (data.cautions && data.cautions.length > 0) {
+                document.getElementById('cautions-section').classList.remove('hidden');
+                const cautionsList = document.getElementById('cautions-list');
+                cautionsList.innerHTML = data.cautions.map(c => `<li>• ${c}</li>`).join('');
+            } else {
+                document.getElementById('cautions-section').classList.add('hidden');
+            }
+
+            // Disclaimer
+            document.getElementById('disclaimer').textContent = data.disclaimer || '본 정보는 의학적 진단을 대신할 수 없습니다.';
+        }
+    </script>
+</body>
+
+</html>

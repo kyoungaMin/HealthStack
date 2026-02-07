@@ -1,0 +1,109 @@
+# Restaurant Recommendations
+
+**Tables**: restaurants, restaurant_menus, restaurant_search_templates, restaurant_search_requests, restaurant_search_results, user_restaurant_favorites, user_restaurant_visit_logs
+
+```mermaid
+erDiagram
+    restaurants {
+        bigint id PK
+        text provider
+        text external_id
+        text name
+        text category
+        text address_full
+        text address_road
+        text address_region
+        decimal latitude
+        decimal longitude
+        decimal rating_avg
+        int review_count
+        text phone
+        text website_url
+        boolean is_open
+        json raw_json
+        timestamptz last_synced_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    restaurant_menus {
+        bigint id PK
+        bigint restaurant_id
+        text menu_name
+        text menu_category
+        int price
+        text currency
+        text rep_codes
+        text description
+        boolean is_signature
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    restaurant_search_templates {
+        bigint id PK
+        text rep_code
+        text provider
+        text query_template
+        text category_filter
+        text disclaimer_ko
+        int priority
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    restaurant_search_requests {
+        bigint id PK
+        text request_hash
+        text provider
+        text query
+        decimal latitude
+        decimal longitude
+        int radius_meters
+        text category_filter
+        text sort_by
+        int result_count
+        int total_available
+        timestamptz expires_at
+        int cache_hit_count
+        int api_quota_used
+        timestamptz created_at
+        timestamptz last_accessed_at
+    }
+    restaurant_search_results {
+        bigint id PK
+        bigint search_request_id
+        bigint restaurant_id
+        int rank_position
+        int distance_meters
+        decimal relevance_score
+        text matched_keywords
+        text matched_rep_codes
+        timestamptz created_at
+    }
+    user_restaurant_favorites {
+        bigint id PK
+        uuid user_id
+        bigint restaurant_id
+        text note
+        text tags
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    user_restaurant_visit_logs {
+        bigint id PK
+        uuid user_id
+        bigint restaurant_id
+        text action_type
+        bigint search_request_id
+        bigint symptom_id
+        timestamptz created_at
+    }
+    restaurants ||--o{ restaurant_menus : has
+    foods_master ||--o{ restaurant_search_templates : refs
+    restaurant_search_requests ||--o{ restaurant_search_results : has
+    restaurants ||--o{ restaurant_search_results : has
+    auth_users ||--o{ user_restaurant_favorites : refs
+    restaurants ||--o{ user_restaurant_favorites : has
+    auth_users ||--o{ user_restaurant_visit_logs : refs
+    restaurants ||--o{ user_restaurant_visit_logs : has
+    restaurant_search_requests ||--o{ user_restaurant_visit_logs : has
+    disease_master ||--o{ user_restaurant_visit_logs : refs
+```

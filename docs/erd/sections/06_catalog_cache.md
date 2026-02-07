@@ -1,0 +1,50 @@
+# Catalog Codes & Cache
+
+**Tables**: catalog_major_codes, catalog_minor_codes, youtube_cache, commerce_cache
+
+```mermaid
+erDiagram
+    catalog_major_codes {
+        text code PK
+        text name
+        text domain
+        text description
+        int sort_order
+        boolean is_enabled
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    catalog_minor_codes {
+        text code PK
+        text major_code
+        text name
+        text name_en
+        text description
+        int sort_order
+        boolean is_enabled
+        json meta
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    youtube_cache {
+        bigint id PK
+        text query_hash
+        text query
+        text provider
+        json response_json
+        timestamptz expires_at
+        timestamptz created_at
+        timestamptz last_accessed_at
+    }
+    commerce_cache {
+        bigint id PK
+        text query_hash
+        text query
+        text provider
+        json response_json
+        timestamptz expires_at
+        timestamptz created_at
+        timestamptz last_accessed_at
+    }
+    catalog_major_codes ||--o{ catalog_minor_codes : has
+```

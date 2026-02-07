@@ -1,0 +1,37 @@
+erDiagram
+    plans {
+        bigint id PK
+        text code
+        text name
+        int price
+        text currency
+        jsonb features
+        boolean is_active
+    }
+    subscriptions {
+        bigint id PK
+        uuid user_id
+        text plan_code
+        text status
+        timestamptz current_period_start
+        timestamptz current_period_end
+        text provider
+        text provider_sub_id
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    payments {
+        bigint id PK
+        uuid user_id
+        int amount
+        text currency
+        text provider
+        text provider_payment_id
+        text payment_type
+        bigint reference_id
+        text status
+        timestamptz created_at
+    }
+    auth_users ||--o{ subscriptions : refs
+    plans ||--o{ subscriptions : has
+    auth_users ||--o{ payments : refs

@@ -1,0 +1,75 @@
+erDiagram
+    pubmed_papers {
+        text pmid PK
+        text title
+        text abstract
+        text journal
+        int pub_year
+        text publication_types
+        text mesh_terms
+        text url
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    pubmed_embeddings {
+        text pmid
+        int chunk_index
+        text content
+        vector embedding
+        timestamptz created_at
+    }
+    modern_to_mesh_map {
+        bigint id PK
+        bigint modern_disease_id
+        text mesh_term
+        text mesh_ui
+        text mesh_tree
+        text search_role
+        int priority
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    symptom_pubmed_map {
+        bigint id PK
+        bigint symptom_id
+        text keyword_en
+        text mesh_term
+        text search_role
+        int priority
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    ingredient_pubmed_map {
+        bigint id PK
+        text rep_code
+        text ingredient_name_en
+        text mesh_term
+        text bioactive_compound
+        text compound_mesh
+        text search_role
+        int priority
+        text note
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    interaction_facts {
+        bigint id PK
+        text a_type
+        text a_ref
+        text b_type
+        text b_ref
+        text severity
+        text evidence_level
+        text mechanism
+        text summary_ko
+        text action_ko
+        jsonb sources
+        text pmids
+        timestamptz updated_at
+    }
+    disease_master ||--o{ modern_to_mesh_map : refs
+    disease_master ||--o{ symptom_pubmed_map : refs
+    foods_master ||--o{ ingredient_pubmed_map : refs
+    pubmed_papers ||--o{ pubmed_embeddings : has

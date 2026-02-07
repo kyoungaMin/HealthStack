@@ -1,0 +1,8 @@
+{
+  "description": "Health Stack - 내 몸 설명서",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ],
+  "name": "HealthStack"
+}
