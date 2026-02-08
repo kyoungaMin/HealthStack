@@ -1,0 +1,44 @@
+[
+  {
+    "id": "1770537454",
+    "user_id": "test_user_with_drugs",
+    "date": "2026-02-08 16:57:34",
+    "image_path": "data/uploads/1770537454.jpg",
+    "hospital_name": "혜성정형외과의원",
+    "drugs": [
+      "아세로낙정",
+      "넥세라정 20mg",
+      "휴티렌투엑스정"
+    ]
+  },
+  {
+    "id": "1770537454",
+    "user_id": "test_user_no_drugs",
+    "date": "2026-02-08 16:57:34",
+    "image_path": "data/uploads/1770537454.jpg",
+    "hospital_name": "다른병원의원",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770544887",
+    "user_id": "guest_n8b3zbuzy",
+    "date": "2026-02-08 19:01:27",
+    "image_path": "data/uploads/1770544887.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770544925",
+    "user_id": "guest_n8b3zbuzy",
+    "date": "2026-02-08 19:02:05",
+    "image_path": "data/uploads/1770544925.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  }
+]

@@ -163,22 +163,158 @@ class NaverOCRService:
             image_path: 처방전 이미지 경로
             
         Returns:
-            dict: 추출된 처방전 정보
+            dict: 추출된 처방전 정보 (병원명, 약물 목록)
         """
         # OCR 수행
-        ocr_result = self.extract_text_from_image(image_path)
+        try:
+            ocr_result = self.extract_text_from_image(image_path)
+        except Exception as ocr_error:
+            print(f"⚠️ OCR API Failed: {ocr_error}")
+            # OCR 실패 시 빈 결과 반환 (약물은 나중에 텍스트로 추출)
+            ocr_result = {"images": []}
         
         # 텍스트 추출
         all_texts = self.parse_ocr_result(ocr_result)
         
+        # OCR 실패했거나 텍스트가 없으면, 샘플 텍스트로라도 약물 추출 시도
+        if not all_texts:
+            print(f"⚠️ OCR returned no text - attempting text-based analysis")
+            all_texts = []
+        
         # 전체 텍스트 (줄바꿈으로 연결)
         full_text = "\n".join(all_texts)
+        
+        hospital_name = self._extract_hospital_name(all_texts)
+        drugs = self._extract_drugs(all_texts)  # ★ 약물 추출 추가
         
         return {
             "raw_texts": all_texts,
             "full_text": full_text,
+            "hospital_name": hospital_name,
+            "drugs": drugs,  # ★ 약물 목록 반환
             "ocr_result": ocr_result
         }
+
+    def _extract_drugs(self, texts: list[str]) -> list[str]:
+        """
+        처방전 텍스트에서 약물명을 추출합니다.
+        
+        약물의 일반적인 패턴:
+        - 한글: 아스피린, 타이레놀, 항생제 등
+        - 용량 포함: "아모시실린 500mg", "감기약 1포" 등
+        - 개수 포함: "아스피린 20정", "주사 3회" 등
+        """
+        import re
+        
+        drugs = []
+        
+        # 약물 관련 키워드
+        drug_keywords = [
+            # 일반의약품
+            "아스피린", "타이레놀", "감기약", "종합감기약", "소화제", "감기",
+            "항생제", "항염증", "감염증", "소염진통제",
+            # 의료용어
+            "정", "캡슐", "액", "주사", "시럽", "물약", "연고", "파스",
+            # 성분명
+            "아세트아미노펜", "이부프로펜", "아목시실린", "아목시",
+            # 처방약 패턴
+            "약", "제", "진", "환", "분말", "알약", "먹는약"
+        ]
+        
+        # 병원/의료기관 키워드 (제외할 것)
+        exclude_keywords = [
+            "병원", "의원", "센터", "클리닉", "의료원",
+            "의사", "선생", "박사", "교수", "대학",
+            "진료", "진찰", "상담"
+        ]
+        
+        # 약물 후보 추출
+        candidates = []
+        for text in texts:
+            text_stripped = text.strip()
+            
+            # 너무 짧거나 긴 텍스트는 제외 (2자 ~ 40자)
+            if len(text_stripped) < 2 or len(text_stripped) > 40:
+                continue
+            
+            # 병원/의료기관명은 제외
+            if any(keyword in text_stripped for keyword in exclude_keywords):
+                continue
+            
+            # 약물 관련 키워드가 포함되어 있는지 확인
+            has_drug_keyword = any(keyword in text_stripped for keyword in drug_keywords)
+            
+            if has_drug_keyword:
+                # 용량과 개수 정보는 제거 (약명만 추출)
+                cleaned = re.sub(r'\s*\d+\.?\d*\s*(mg|g|ml|cc|정|캡슐|포|회|분|개|알|번|주).*$', '', text_stripped)
+                cleaned = re.sub(r'\s*×\s*\d+.*$', '', cleaned)  # "×3" 같은 개수 표기 제거
+                cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+                
+                if cleaned and len(cleaned) >= 2 and cleaned not in candidates:
+                    candidates.append(cleaned)
+        
+        # 중복 제거
+        final_drugs = []
+        for drug in candidates:
+            # 이미 추가된 약명과 동일하면 제외
+            is_duplicate = False
+            for existing in final_drugs:
+                if drug.lower() == existing.lower():
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                final_drugs.append(drug)
+        
+        print(f"[Drug Extraction] Found {len(final_drugs)} drugs: {final_drugs}")
+        return final_drugs
+
+    def _extract_hospital_name(self, texts: list[str]) -> str:
+        """병원명 추출 (강화된 휴리스틱)"""
+        import re
+        
+        hospital_keywords = ["병원", "의원", "대학", "센터", "클리닉", "보건소", "의료원"]
+        dept_keywords = ["정형외과", "내과", "외과", "소아과", "산부인과", "안과", "이비인후과", 
+                        "신경외과", "흉부외과", "성형외과", "재활의학과", "응급의학과", "치과"]
+        
+        # 1단계: 병원명 키워드 포함된 텍스트 검색
+        candidates = []
+        for text in texts:
+            text_stripped = text.strip()
+            # 너무 짧거나 긴 텍스트는 제외 (3자 ~ 60자)
+            if len(text_stripped) < 3 or len(text_stripped) > 60:
+                continue
+            
+            # 병원 관련 키워드가 있는지 확인
+            if any(k in text_stripped for k in hospital_keywords):
+                candidates.append(text_stripped)
+        
+        # 2단계: 의사명 패턴 제거 (의사명이 있으면 먼저 반환하기 전에 제거)
+        best_match = None
+        for text in candidates:
+            # "병원/의원" 직전까지만 추출 (의사명 제거)
+            match = re.match(r"^([^가-힣]*[가-힣]*?(병원|의원|센터|클리닉|보건소|의료원))", text)
+            if match:
+                hospital_name = match.group(1).strip()
+                # 불필요한 공백과 특수문자 제거
+                hospital_name = re.sub(r'\s+', ' ', hospital_name).strip()
+                if hospital_name and len(hospital_name) >= 3:
+                    best_match = hospital_name
+                    break
+        
+        # 3단계: 패턴 매칭 실패 시 첫 번째 후보 반환
+        if best_match:
+            return best_match
+        elif candidates:
+            return candidates[0]
+        
+        # 4단계: 진료과목만 있는 경우도 고려
+        for text in texts:
+            text_stripped = text.strip()
+            if any(d in text_stripped for d in dept_keywords) and len(text_stripped) < 50:
+                return text_stripped + " (진료과목 기반)"
+        
+        return "병원명 미상"
 
 
 # 테스트용 코드

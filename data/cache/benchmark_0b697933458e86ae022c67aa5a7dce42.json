@@ -1,0 +1,12 @@
+{
+  "namespace": "benchmark",
+  "key": "item_19",
+  "data": {
+    "index": 19,
+    "data": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "created_at": "2026-02-08T17:09:28.233805",
+  "last_accessed": "2026-02-08T17:09:28.552395",
+  "hit_count": 1,
+  "metadata": {}
+}

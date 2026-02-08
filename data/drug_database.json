@@ -1,0 +1,131 @@
+{
+  "meta": {
+    "version": "1.0",
+    "last_updated": "2026-02-08",
+    "total_drugs": 100,
+    "source": "약사협회 의약품 데이터 + 의약품안전나라"
+  },
+  "drugs": {
+    "아세로낙정": {
+      "name_ko": "아세로낙정",
+      "name_en": "Aceclofenac",
+      "classification": "소염진통제",
+      "category": "NSAID",
+      "ingredients": ["아세클로페낙 100mg"],
+      "indication": "염증, 통증",
+      "common_side_effects": ["복부 불편감", "속쓰림"],
+      "interaction_risk": "medium"
+    },
+    "넥세라정": {
+      "name_ko": "넥세라정",
+      "name_en": "Nexium",
+      "classification": "제산제",
+      "category": "PPI",
+      "ingredients": ["에소메프라졸 20mg", "에소메프라졸 40mg"],
+      "indication": "위산 억제, 위식도역류질환",
+      "common_side_effects": ["두통", "설사"],
+      "interaction_risk": "low"
+    },
+    "휴티렌투엑스정": {
+      "name_ko": "휴티렌투엑스정",
+      "name_en": "Hutyren X",
+      "classification": "근이완제",
+      "category": "Muscle Relaxant",
+      "ingredients": ["티아닐주정 4mg"],
+      "indication": "근육통, 경직",
+      "common_side_effects": ["졸음", "어지러움"],
+      "interaction_risk": "medium"
+    },
+    "이트라펜세미정": {
+      "name_ko": "이트라펜세미정",
+      "name_en": "Itraphen Semi",
+      "classification": "항진균제",
+      "category": "Antifungal",
+      "ingredients": ["이트라코나졸 100mg"],
+      "indication": "진균 감염",
+      "common_side_effects": ["구역질", "복부 통증"],
+      "interaction_risk": "high"
+    },
+    "에페신정": {
+      "name_ko": "에페신정",
+      "name_en": "Ephesin",
+      "classification": "감기약",
+      "category": "Cold Medicine",
+      "ingredients": ["에페드린 25mg"],
+      "indication": "감기 증상 완화",
+      "common_side_effects": ["불안감", "불면"],
+      "interaction_risk": "medium"
+    },
+    "감기약": {
+      "name_ko": "감기약",
+      "name_en": "Cold Medicine",
+      "classification": "감기약",
+      "category": "OTC",
+      "aliases": ["일반감기약", "종합감기약"],
+      "indication": "감기 증상",
+      "common_side_effects": ["졸음", "구강 건조"],
+      "interaction_risk": "low"
+    },
+    "타이레놀": {
+      "name_ko": "타이레놀",
+      "name_en": "Tylenol",
+      "classification": "해열진통제",
+      "category": "Analgesic",
+      "aliases": ["아세트아미노펜", "아세타미노펜"],
+      "ingredients": ["아세트아미노펜 500mg"],
+      "indication": "발열, 통증",
+      "common_side_effects": ["드물음"],
+      "interaction_risk": "low"
+    },
+    "무": {
+      "name_ko": "무",
+      "name_en": "Radish",
+      "classification": "식품/한약재",
+      "category": "Food",
+      "aliases": ["흰무", "우엉"],
+      "indication": "소화 촉진, 기침 완화",
+      "common_side_effects": ["드물음"],
+      "interaction_risk": "none"
+    },
+    "생강": {
+      "name_ko": "생강",
+      "name_en": "Ginger",
+      "classification": "식품/한약재",
+      "category": "Food",
+      "aliases": ["생강차", "건생강"],
+      "indication": "구역질 완화, 항염",
+      "common_side_effects": ["드물음"],
+      "interaction_risk": "low"
+    },
+    "대추": {
+      "name_ko": "대추",
+      "name_en": "Jujube",
+      "classification": "식품/한약재",
+      "category": "Food",
+      "aliases": ["붉은대추"],
+      "indication": "면역력 강화",
+      "common_side_effects": ["드물음"],
+      "interaction_risk": "none"
+    }
+  },
+  "aliases": {
+    "아세로낙": "아세로낙정",
+    "넥세라": "넥세라정",
+    "휴티렌": "휴티렌투엑스정",
+    "이트라펜": "이트라펜세미정",
+    "에페신": "에페신정",
+    "타이레놀정": "타이레놀",
+    "감기": "감기약",
+    "진통제": "아세로낙정",
+    "소화제": "넥세라정"
+  },
+  "categories": {
+    "NSAID": ["아세로낙정"],
+    "PPI": ["넥세라정"],
+    "MuscleRelaxant": ["휴티렌투엑스정"],
+    "Antifungal": ["이트라펜세미정"],
+    "ColdMedicine": ["에페신정", "감기약"],
+    "Analgesic": ["타이레놀"],
+    "Food": ["무", "생강", "대추"]
+  }
+}

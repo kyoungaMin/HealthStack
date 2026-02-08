@@ -1,0 +1,13 @@
+{
+  "namespace": "drug_info",
+  "key": "아세로낙정",
+  "data": {
+    "name": "아세로낙정",
+    "info": "소염진통제 - 관절염 및 염증 치료",
+    "dosage": "1-2정 1일 2회"
+  },
+  "created_at": "2026-02-08T17:09:28.057046",
+  "last_accessed": "2026-02-08T17:09:28.106958",
+  "hit_count": 3,
+  "metadata": {}
+}

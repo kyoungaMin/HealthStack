@@ -34,6 +34,14 @@ interface AnalysisHistory {
   aiSummary: string | null;
 }
 
+interface PrescriptionRecord {
+  id: string;
+  date: string;
+  image_url: string;
+  hospital_name: string;
+  drugs: string[];
+}
+
 interface Medication {
   id: string;
   name: string;
@@ -73,6 +81,16 @@ const App = () => {
     } catch { return []; }
   });
 
+  // Guest ID Init
+  const [userId] = useState(() => {
+    let id = localStorage.getItem('guest_user_id');
+    if (!id) {
+      id = 'guest_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('guest_user_id', id);
+    }
+    return id;
+  });
+
   useEffect(() => {
     localStorage.setItem('health-history', JSON.stringify(history));
   }, [history]);
@@ -94,6 +112,9 @@ const App = () => {
     const saved = localStorage.getItem('medications');
     return saved ? JSON.parse(saved) : [];
   });
+  const [prescriptionRecords, setPrescriptionRecords] = useState<PrescriptionRecord[]>([]);
+  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<string | null>(null);
+
   const [newMedName, setNewMedName] = useState('');
   const [newMedTime, setNewMedTime] = useState('');
   const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
@@ -111,6 +132,16 @@ const App = () => {
       .then(data => setGoldenQuestions(data.questions))
       .catch(err => console.error(err));
   }, []);
+
+  // Fetch prescription records when entering stack tab
+  useEffect(() => {
+    if (activeTab === 'stack') {
+      fetch(`${BACKEND_URL}/api/prescriptions?user_id=${userId}`)
+        .then(res => res.json())
+        .then(data => setPrescriptionRecords(data.prescriptions || []))
+        .catch(err => console.error("Failed to fetch prescriptions:", err));
+    }
+  }, [activeTab, userId]);
 
   // Save medications to local storage
   useEffect(() => {
@@ -189,7 +220,12 @@ const App = () => {
 
     const formData = new FormData();
     formData.append('symptom', userInput);
+    formData.append('user_id', userId);
     formData.append('file', file);
+    
+    // ★ 추가: 현재 입력된 약물 목록을 JSON으로 전달
+    const medNames = medications.map(med => med.name);
+    formData.append('medications_json', JSON.stringify(medNames));
 
     try {
       const res = await fetch(`${BACKEND_URL}/api/analyze-with-image`, {
@@ -246,7 +282,7 @@ const App = () => {
       const backendRes = await fetch(`${BACKEND_URL}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symptom: query })
+        body: JSON.stringify({ symptom: query, user_id: userId })
       });
 
       if (backendRes.ok) {
@@ -286,8 +322,8 @@ const App = () => {
         }
       }
 
-      const ai = new GoogleGenerativeAI(process.env.API_KEY!);
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const ai = new GoogleGenerativeAI((import.meta as any).env.VITE_API_KEY!);
+      const model = ai.getGenerativeModel({ model: "gemini-pro" });
       const result = await model.generateContent(`사용자의 증상이나 질문: "${query}". 
         이 내용을 바탕으로 (1) 현재 상태를 친절하게 설명해주고 
         (2) 현대 의학적 주의사항과 (3) 동의보감 기반 또는 도움이 되는 구체적인 식재료 2-3개를 추천해줘. 
@@ -750,6 +786,62 @@ const App = () => {
               </div>
             )}
 
+            {/* 처방전 기록 섹션 */}
+            <div className="space-y-4">
+              <h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2 px-2">
+                <span className="text-xl">📷</span> 나의 처방전 기록
+              </h3>
+
+              {prescriptionRecords.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 text-center border border-slate-100 shadow-sm">
+                  <p className="text-slate-400 text-sm">저장된 처방전이 없습니다.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {prescriptionRecords.map(record => (
+                    <div key={record.id} className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden transition-all">
+                      <button
+                        onClick={() => setSelectedPrescriptionId(selectedPrescriptionId === record.id ? null : record.id)}
+                        className="w-full p-4 flex items-center justify-between hover:bg-emerald-50/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-xl">🏥</div>
+                          <div className="text-left">
+                            <p className="font-bold text-slate-700 text-sm">{record.hospital_name}</p>
+                            <p className="text-xs text-slate-400">{record.date}</p>
+                          </div>
+                        </div>
+                        <span className={`text-slate-300 transition-transform ${selectedPrescriptionId === record.id ? 'rotate-180' : ''}`}>▼</span>
+                      </button>
+
+                      {selectedPrescriptionId === record.id && (
+                        <div className="bg-emerald-50/30 p-4 border-t border-emerald-100 animate-in">
+                          <div className="mb-4">
+                            <h4 className="text-xs font-bold text-slate-500 mb-2">처방 약물 목록</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {record.drugs.map((drug, i) => (
+                                <span key={i} className="bg-white border border-emerald-200 text-emerald-700 px-2 py-1 rounded-lg text-xs font-bold shadow-sm">
+                                  {drug}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {record.image_url && (
+                            <div className="mt-3">
+                              <p className="text-xs font-bold text-slate-500 mb-2">원본 이미지</p>
+                              <img src={`${BACKEND_URL}${record.image_url}`} alt="처방전" className="w-full rounded-xl border border-slate-200" />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 my-2"></div>
+
             <div className="health-card p-6">
               <h3 className="font-extrabold text-slate-800 mb-4 flex items-center gap-2">
                 <span className="text-xl">💊</span> 새 알림 추가
@@ -812,13 +904,13 @@ const App = () => {
               <span className="font-bold block mb-1">💡 잊지 마세요!</span>
               약을 드신 후 체크 버튼(○)을 눌러 완료 표시를 해주세요. 기록이 쌓이면 건강 관리에 도움이 됩니다.
             </div>
-          </div>
+          </div >
         )}
 
-      </main>
+      </main >
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-slate-100 flex justify-around p-3 pb-8 z-50">
+      < nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-slate-100 flex justify-around p-3 pb-8 z-50" >
         <button onClick={() => { setActiveTab('home'); setShowResult(false); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'nav-active' : 'text-slate-300'}`}>
           <span className="text-xl">🏠</span>
           <span className="text-[10px]">홈</span>
@@ -835,22 +927,24 @@ const App = () => {
           <span className="text-xl">📊</span>
           <span className="text-[10px]">리포트</span>
         </button>
-      </nav>
+      </nav >
 
       {/* Loading Overlay */}
-      {loading && (
-        <div className="absolute inset-0 bg-white/70 backdrop-blur-[4px] z-[100] flex flex-col items-center justify-center px-10 text-center">
-          <div className="relative w-20 h-20 mb-6">
-            <div className="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+      {
+        loading && (
+          <div className="absolute inset-0 bg-white/70 backdrop-blur-[4px] z-[100] flex flex-col items-center justify-center px-10 text-center">
+            <div className="relative w-20 h-20 mb-6">
+              <div className="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h3 className="text-xl font-bold text-emerald-800 mb-2">분석하고 있어요</h3>
+            <p className="text-emerald-600 font-gaegu text-lg leading-tight">
+              당신의 건강 기록과 어울리는<br />영상을 찾고 있습니다. 잠시만요!
+            </p>
           </div>
-          <h3 className="text-xl font-bold text-emerald-800 mb-2">분석하고 있어요</h3>
-          <p className="text-emerald-600 font-gaegu text-lg leading-tight">
-            당신의 건강 기록과 어울리는<br />영상을 찾고 있습니다. 잠시만요!
-          </p>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

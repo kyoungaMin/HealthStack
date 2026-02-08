@@ -1,7 +1,7 @@
 """
 통합 분석 서비스 모듈
 증상 분석 → 동의보감 식재료 추천 → PubMed 근거 연결
-3단계 Fallback 전략 적용
+3단계 Fallback 전략 적용 + API 캐싱
 """
 import os
 import sys
@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from database.supabase_client import get_supabase_client
+from app.utils.cache_manager import CacheManager
 
 load_dotenv()
 
@@ -29,10 +30,23 @@ class Ingredient:
 
 
 @dataclass
+class Recipe:
+    """추천 레시피 정보"""
+    id: int
+    title: str
+    description: str
+    meal_slot: str
+    priority: int
+    rationale_ko: str
+    tags: list[str]
+
+
+@dataclass
 class AnalysisResult:
     """분석 결과"""
     symptom_summary: str
     ingredients: list[Ingredient] = field(default_factory=list)
+    recipes: list[Recipe] = field(default_factory=list)
     confidence_level: str = "general"  # high | medium | general
     source: str = "ai_generated"  # database | similarity | ai_generated
     matched_symptom_id: Optional[int] = None
@@ -45,30 +59,94 @@ class AnalyzeService:
     
     def __init__(self):
         self.db = get_supabase_client()
+        self.cache = CacheManager()  # ★ 캐시 매니저 추가
     
-    async def analyze_symptom(self, symptom_text: str) -> AnalysisResult:
-        """
-        증상 텍스트를 분석하고 식재료를 추천합니다.
-        3단계 Fallback 전략 적용
-        
-        Args:
-            symptom_text: 사용자 입력 증상 텍스트
+    def _check_interactions(self, drug_names: list[str], ingredients: list[Ingredient]) -> list[str]:
+        """약물-식재료 상호작용 체크"""
+        cautions = []
+        if not drug_names or not ingredients:
+            return []
             
-        Returns:
-            AnalysisResult: 분석 결과
+        ing_names = {i.modern_name for i in ingredients}
+        
+        try:
+            # 약물별로 상호작용 검사
+            for drug in drug_names:
+                result = self.db.table("interaction_facts").select("*").or_(
+                    f"a_ref.ilike.%{drug}%,"
+                    f"b_ref.ilike.%{drug}%"
+                ).execute()
+                
+                if not result.data:
+                    continue
+                    
+                for row in result.data:
+                    # 상대방 식별 (약물이 a면 b, 약물이 b면 a)
+                    other = row['b_ref'] if drug in row['a_ref'] else row['a_ref']
+                    
+                    # 식재료 이름이 상대방 텍스트에 포함되는지 확인
+                    for ing in ing_names:
+                        if ing in other or other in ing: 
+                             cautions.append(f"⚠️ [약물상호작용] '{drug}' + '{ing}' 주의: {row.get('summary_ko', '')} ({row.get('severity', '주의')})")
+        except Exception as e:
+            print(f"Interaction check error: {e}")
+        return list(set(cautions))
+
+    async def analyze_symptom(self, symptom_text: str, current_meds: list[str] = None) -> AnalysisResult:
+        """
+        증상 텍스트를 분석하고 식재료를 추천합니다. (Wrapper with Global Error Handling)
+        """
+        try:
+            return await self._analyze_symptom_logic(symptom_text, current_meds)
+        except Exception as e:
+            print(f"CRITICAL ANALYZE ERROR: {e}")
+            try:
+                # 최후의 수단: AI Fallback
+                return await self._analyze_with_ai(symptom_text, current_meds)
+            except Exception as ai_e:
+                print(f"AI FALLBACK FAILED: {ai_e}")
+                import traceback
+                traceback.print_exc()
+                return AnalysisResult(
+                    symptom_summary="시스템 오류가 발생했습니다.",
+                    confidence_level="error",
+                    source="error"
+                )
+
+    async def _analyze_symptom_logic(self, symptom_text: str, current_meds: list[str] = None) -> AnalysisResult:
+        """
+        증상 분석 핵심 로직
         """
         # 1차: disease_master 정확 매칭
         matched = self._search_exact_symptom(symptom_text)
         
         if matched:
             ingredients = self._get_ingredients_from_db(matched["id"])
+            recipes = self._get_recipes_from_db(matched["id"])
+            
+            # 데이터 부족(식재료 없음) 시 AI Fallback
+            if not ingredients and not recipes:
+                print(f"데이터 부족(정확매칭/식재료없음) -> AI 전환: {matched.get('modern_name_ko')}")
+                return await self._analyze_with_ai(symptom_text, current_meds)
+
+            # 레시피 부족 시 AI 자동 생성 및 저장
+            if not recipes:
+                print(f"레시피 부족(정확매칭): {matched['modern_name_ko']} -> AI 생성 시도")
+                recipes = await self._generate_and_save_recipes(matched["id"], matched["modern_name_ko"])
+                
+            cautions = []
+            if current_meds:
+                cautions = self._check_interactions(current_meds, ingredients)
+
             return AnalysisResult(
                 symptom_summary=f"{matched.get('modern_name_ko', matched.get('disease_read', ''))} 관련 증상입니다.",
                 ingredients=ingredients,
+                recipes=recipes,
                 confidence_level="high",
                 source="database",
                 matched_symptom_id=matched["id"],
-                matched_symptom_name=matched.get("modern_name_ko")
+                matched_symptom_name=matched.get("modern_name_ko"),
+                cautions=cautions
             )
         
         # 2차: 유사 증상 검색 (aliases, 부분 매칭)
@@ -76,22 +154,310 @@ class AnalyzeService:
         
         if similar:
             ingredients = self._get_ingredients_from_db(similar["id"])
+            recipes = self._get_recipes_from_db(similar["id"])
+            
+            # 데이터 부족(식재료 없음) 시 AI Fallback
+            if not ingredients and not recipes:
+                print(f"데이터 부족(유사매칭/식재료없음) -> AI 전환: {similar.get('modern_name_ko')}")
+                return await self._analyze_with_ai(symptom_text, current_meds)
+
+            # 레시피 부족 시 AI 자동 생성 및 저장
+            if not recipes:
+                print(f"레시피 부족(유사매칭): {similar.get('modern_name_ko')} -> AI 생성 시도")
+                recipes = await self._generate_and_save_recipes(similar["id"], similar.get('modern_name_ko', symptom_text))
+
+            cautions = []
+            if current_meds:
+                cautions = self._check_interactions(current_meds, ingredients)
+
             return AnalysisResult(
                 symptom_summary=f"'{similar.get('modern_name_ko', '')}' 증상과 유사합니다.",
                 ingredients=ingredients,
+                recipes=recipes,
                 confidence_level="medium",
                 source="similarity",
                 matched_symptom_id=similar["id"],
-                matched_symptom_name=similar.get("modern_name_ko")
+                matched_symptom_name=similar.get("modern_name_ko"),
+                cautions=cautions
             )
         
-        # 3차: AI Fallback (빈 결과 반환 - 프론트엔드에서 Google AI 호출)
-        return AnalysisResult(
-            symptom_summary="입력하신 증상에 대해 AI가 분석합니다.",
-            ingredients=[],
+        # 3차: AI Fallback (Gemini 호출)
+        return await self._analyze_with_ai(symptom_text, current_meds)
+
+    async def _generate_and_save_recipes(self, symptom_id: int, symptom_name: str) -> list[Recipe]:
+        """
+        DB에 레시피가 없을 때 AI로 생성하여 DB에 저장하고 반환
+        """
+        try:
+            import google.generativeai as genai
+            import json
+        
+            api_key = os.getenv("API_KEY")
+            if not api_key:
+                return []
+
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            
+            prompt = f"""
+            Role: Culinary Therapist
+            Task: Create 2 healthy recipes helpful for the symptom: "{symptom_name}".
+            
+            Output Format: JSON string ONLY.
+            [
+                {{
+                    "title": "Recipe Title (Korean)",
+                    "description": "Brief description",
+                    "meal_slot": "breakfast" | "lunch" | "dinner" | "tea" | "snack",
+                    "rationale": "Why this helps (Korean)",
+                    "difficulty": "easy" | "medium" | "hard",
+                    "tags": ["tag1", "tag2"]
+                }}
+            ]
+            """
+            
+            response = await model.generate_content_async(prompt)
+            text_response = response.text.strip().replace("```json", "").replace("```", "")
+            data = json.loads(text_response)
+            
+            generated_recipes = []
+            
+            for item in data:
+                # 1. Insert into recipes table
+                recipe_data = {
+                    "title": item.get("title"),
+                    "description": item.get("description"),
+                    "difficulty": item.get("difficulty", "easy"),
+                    "tags": item.get("tags", []),
+                    "ingredients": [], # Placeholder
+                    "steps": []       # Placeholder
+                }
+                
+                # supabase insert and get id
+                # Note: supabase-py insert returns data if select() is chained or usually returns data by default in v2?
+                # Using execute() returns result.
+                res_recipe = self.db.table("recipes").insert(recipe_data).select("id").execute()
+                
+                if res_recipe.data:
+                    new_id = res_recipe.data[0]["id"]
+                    
+                    # 2. Insert into symptom_recipe_map
+                    map_data = {
+                        "symptom_id": symptom_id,
+                        "recipe_id": new_id,
+                        "rationale_ko": item.get("rationale"),
+                        "meal_slot": item.get("meal_slot", "anytime"),
+                        "priority": 80
+                    }
+                    self.db.table("symptom_recipe_map").insert(map_data).execute()
+                    
+                    # Add to list
+                    generated_recipes.append(Recipe(
+                        id=new_id,
+                        title=item.get("title"),
+                        description=item.get("description"),
+                        meal_slot=item.get("meal_slot", "anytime"),
+                        priority=80,
+                        rationale_ko=item.get("rationale"),
+                        tags=item.get("tags", [])
+                    ))
+            
+            return generated_recipes
+
+        except Exception as e:
+            print(f"레시피 생성/저장 실패: {e}")
+            return []
+
+    async def _analyze_with_ai(self, symptom_text: str, current_meds: list[str] = None) -> AnalysisResult:
+        """Call Gemini to analyze symptom and recommend ingredients/recipes - 캐싱 적용"""
+        import json
+        
+        # ★ 캐시 키 생성 (증상 + 약물 조합)
+        cache_key = f"ai_analysis:{symptom_text}:{','.join(sorted(current_meds or []))}"
+        
+        # ★ 캐시 확인 (TTL: 3일)
+        cached_result = self.cache.get("ai_analysis", cache_key, ttl_hours=72)
+        if cached_result:
+            print(f"[Cache HIT] Returning cached AI analysis result")
+            # 캐시된 dict를 AnalysisResult로 복원
+            return AnalysisResult(**cached_result)
+        
+        print(f"[Cache MISS] Fetching fresh AI analysis")
+            
+        # 증상 텍스트가 없고 약물만 있는 경우, 약물 정보를 증상 텍스트로 변환
+        if (not symptom_text or len(symptom_text.strip()) < 2) and current_meds:
+            symptom_text = f"Prescribed Medications: {', '.join(current_meds)}"
+            print(f"[Analysis] Empty symptom -> Inferred from meds: {symptom_text}")
+
+        prompt = f"""
+        Role: Clinical Pharmacist & Oriental Medicine Doctor
+        Task: Analyze the inputs to INFER the user's underlying health condition/symptom.
+        
+        Input Data:
+        - User Symptom/Text: "{symptom_text}"
+        - Prescribed Meds: {current_meds if current_meds else "None"}
+        
+        CRITICAL INSTRUCTION:
+        1. If 'User Symptom' contains names of medications (e.g., Tylenol, Amlodipine) or is empty, **YOU MUST INFER the condition**.
+           - E.g., "Amlodipine" -> Infer "High Blood Pressure"
+           - E.g., "Metformin" -> Infer "Diabetes"
+           - E.g., "Tylenol" -> Infer "Pain/Headache"
+        2. DO NOT say "I cannot determine the symptom". Make a reasonable medical inference based on the drugs.
+        3. Based on the INFERRED symptom, recommend food ingredients and recipes.
+        
+        Output Format: JSON string ONLY.
+        {{
+            "symptom_name": "Inferred Symptom Name",
+            "summary": "Brief explanation of the Inferred Symptom in Korean (polite tone, ~해요체)",
+            "ingredients": [
+                {{
+                    "name": "Ingredient Name (Korean)",
+                    "direction": "recommend" | "avoid",
+                    "rationale": "Why this is good/bad for the inferred symptom (Korean)"
+                }}
+            ],
+            "recipes": [
+                {{
+                    "title": "Recipe Title (Korean)",
+                    "description": "Brief description",
+                    "meal_slot": "breakfast" | "lunch" | "dinner" | "tea" | "snack",
+                    "rationale": "Why this recipe helps"
+                }}
+            ]
+        }}
+        
+        Constraints:
+        - Provide 3 ingredients (mix of recommend/avoid).
+        - Provide 2 recipes.
+        - Start rationale with the ingredient/recipe name.
+        
+        CRITICAL INSTRUCTION:
+        1. If 'User Symptom' contains prescription text or is unclear, **INFER the most likely symptom** from 'User Meds' or OCR text keywords.
+           (e.g., 'Tylenol' -> 'Pain/Headache', 'Mucosolvan' -> 'Cold/Cough', 'Amlodipine' -> 'Hypertension')
+        2. NEVER say "I cannot find the symptom" or "General advice". Always generate specific advice for the inferred symptom.
+        3. If inferred symptom is 'High Blood Pressure' or 'Diabetes', recommend 'Low Sodium' or 'Low GI' foods.
+        """
+        
+        data = None
+        source = "ai_generated_gemini"
+
+        # 2. Try Gemini (Primary)
+        try:
+            import google.generativeai as genai
+            api_key = os.getenv("API_KEY")
+            if not api_key:
+                raise ValueError("Google API Key not found")
+
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            
+            response = await model.generate_content_async(prompt)
+            text_response = response.text.strip().replace("```json", "").replace("```", "")
+            data = json.loads(text_response)
+            
+        except Exception as e_gemini:
+            print(f"Gemini Analysis Failed: {e_gemini}. Trying OpenAI fallback...")
+            
+            # 3. Try OpenAI (Fallback)
+            try:
+                import openai
+                openai_key = os.getenv("OPENAI_API_KEY")
+                if not openai_key:
+                    raise ValueError("OpenAI API Key not found for fallback")
+                
+                client = openai.AsyncOpenAI(api_key=openai_key)
+                
+                response = await client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful Oriental Medicine expert. Respond in JSON only."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    response_format={"type": "json_object"}
+                )
+                
+                text_response = response.choices[0].message.content
+                data = json.loads(text_response)
+                source = "ai_generated_openai"
+                
+            except Exception as e_openai:
+                print(f"OpenAI Fallback Failed: {e_openai}")
+                return AnalysisResult(
+                    symptom_summary="AI 분석 서비스 연결에 실패했습니다.",
+                    ingredients=[], recipes=[], confidence_level="none", source="error"
+                )
+
+        # 4. Process Result
+        if data is None: # This should ideally not happen if both try blocks are handled, but as a safeguard
+            return AnalysisResult(
+                symptom_summary="AI 분석 결과를 처리하는 중 오류가 발생했습니다.",
+                ingredients=[],
+                recipes=[],
+                confidence_level="general",
+                source="error"
+            )
+        
+        ingredients = []
+        if "ingredients" in data:
+            for ing_data in data["ingredients"]:
+                try:
+                    ingredients.append(Ingredient(
+                        rep_code="AI_GEN",  # Temporary code
+                        modern_name=ing_data.get("name", "Unknown"),
+                        rationale_ko=ing_data.get("rationale", ""),
+                        direction=ing_data.get("direction", "recommend"),
+                        priority=90 if ing_data.get("direction") == "recommend" else 10,
+                        evidence_level="ai_generated"
+                    ))
+                except Exception as loop_e:
+                    print(f"Error processing ingredient data: {ing_data}. Error: {loop_e}")
+                    # Optionally, you can log this error or skip this ingredient
+                    continue
+            
+        recipes = []
+        if "recipes" in data:
+            for rec in data["recipes"]:
+                recipes.append(Recipe(
+                    id=0,  # Temporary ID
+                    title=rec.get("title", ""),
+                    description=rec.get("description", ""),
+                    meal_slot=rec.get("meal_slot", "anytime"),
+                    priority=80,
+                    rationale_ko=rec.get("rationale", ""),
+                    tags=["AI"]
+                ))
+            
+        # Optional: Save to DB (Log new symptom)
+        # self._log_new_symptom(data["symptom_name"], symptom_text)
+            
+        cautions = []
+        if current_meds:
+            cautions = self._check_interactions(current_meds, ingredients)
+
+        result = AnalysisResult(
+            symptom_summary=data.get("summary", "AI 분석 결과입니다."),
+            ingredients=ingredients,
+            recipes=recipes,
             confidence_level="general",
-            source="ai_generated"
+            source=source,
+            matched_symptom_name=data.get("symptom_name"),
+            cautions=cautions
         )
+        
+        # ★ 결과를 캐시에 저장 (TTL: 3일)
+        try:
+            from dataclasses import asdict
+            self.cache.set(
+                "ai_analysis",
+                cache_key,
+                asdict(result),
+                metadata={"source": source, "meds_count": len(current_meds or [])}
+            )
+            print(f"[Cache SAVED] AI analysis result cached")
+        except Exception as e:
+            print(f"[Cache ERROR] Failed to cache AI analysis: {e}")
+        
+        return result
     
     def _search_exact_symptom(self, symptom_text: str) -> Optional[dict]:
         """disease_master에서 정확 매칭 검색 (식재료 매핑이 있는 증상 우선)"""
@@ -163,27 +529,29 @@ class AnalyzeService:
         # 흔한 증상 키워드 매핑 (사용자 입력 → DB 검색 키워드)
         symptom_keywords = {
             "불면": ["수면", "잠", "불면", "못 자", "안 자", "깨"],
-            "소화": ["소화", "위장", "더부룩", "체한", "소화불량"],
+            "소화": ["소화", "위장", "더부룩", "체한", "소화불량", "속쓰림", "역류"],
             "피로": ["피로", "지침", "기력", "힘이 없"],
             "두통": ["두통", "머리", "편두통"],
             "냉증": ["냉증", "손발", "차가", "냉한"],
             "혈압": ["혈압", "고혈압", "저혈압"],
             "당뇨": ["당뇨", "혈당"],
-            "호흡": ["호흡", "기침", "가래", "숨"],
+            "호흡": ["호흡", "기침", "가래", "숨", "감기", "몸살", "비염"],
             "변비": ["변비", "배변", "대변"],
         }
         
+        mapped_keywords = []
         for db_keyword, input_patterns in symptom_keywords.items():
             for pattern in input_patterns:
                 if pattern in text:
-                    keywords.append(db_keyword)  # DB 검색용 키워드 추가
+                    mapped_keywords.append(db_keyword)
                     break
         
         # 원본 텍스트 단어도 추가
         words = text.replace("이", "").replace("가", "").replace("요", "").split()
-        keywords.extend([w for w in words if len(w) >= 2])
+        other_keywords = [w for w in words if len(w) >= 2 and w not in mapped_keywords]
         
-        return list(set(keywords))
+        # 중요 키워드 우선 검색
+        return list(dict.fromkeys(mapped_keywords + other_keywords))
     
     def _get_ingredients_from_db(self, symptom_id: int) -> list[Ingredient]:
         """symptom_ingredient_map에서 추천 식재료 조회"""
@@ -192,7 +560,7 @@ class AnalyzeService:
             result = self.db.table("symptom_ingredient_map").select(
                 "rep_code, direction, rationale_ko, priority, evidence_level"
             ).eq("symptom_id", symptom_id).order(
-                "priority", desc=False
+                "priority", desc=True
             ).limit(3).execute()
             
             if not result.data:
@@ -224,6 +592,48 @@ class AnalyzeService:
             print(f"식재료 조회 오류: {e}")
             return []
     
+    def _get_recipes_from_db(self, symptom_id: int) -> list[Recipe]:
+        """symptom_recipe_map에서 추천 레시피 조회"""
+        try:
+            # 1. 매핑 조회
+            result = self.db.table("symptom_recipe_map").select(
+                "recipe_id, meal_slot, priority, rationale_ko"
+            ).eq("symptom_id", symptom_id).order(
+                "priority", desc=True
+            ).limit(3).execute()
+            
+            if not result.data:
+                return []
+            
+            # 2. recipe_id로 recipes 테이블 조회
+            recipe_ids = [row["recipe_id"] for row in result.data]
+            recipes_result = self.db.table("recipes").select(
+                "id, title, description, tags"
+            ).in_("id", recipe_ids).execute()
+            
+            # id -> recipe info 매핑
+            recipe_map = {r["id"]: r for r in recipes_result.data}
+            
+            recipes = []
+            for row in result.data:
+                r_id = row["recipe_id"]
+                r_info = recipe_map.get(r_id, {})
+                
+                recipes.append(Recipe(
+                    id=r_id,
+                    title=r_info.get("title", f"Recipe {r_id}"),
+                    description=r_info.get("description", ""),
+                    tags=r_info.get("tags", []),
+                    meal_slot=row.get("meal_slot", "anytime"),
+                    priority=row.get("priority", 50),
+                    rationale_ko=row.get("rationale_ko", "")
+                ))
+            
+            return recipes
+        except Exception as e:
+            print(f"레시피 조회 오류: {e}")
+            return []
+    
     def get_cautions_for_drugs(self, drug_names: list[str]) -> list[str]:
         """약 이름으로 주의사항 조회"""
         cautions = []
@@ -246,7 +656,7 @@ class AnalyzeService:
 
 
 # 동기 래퍼 함수 (테스트용)
-def analyze_symptom_sync(symptom_text: str) -> dict:
+def analyze_symptom_sync(symptom_text: str, current_meds: list[str] = None) -> dict:
     """동기 버전 분석 함수"""
     import asyncio
     service = AnalyzeService()
@@ -258,7 +668,7 @@ def analyze_symptom_sync(symptom_text: str) -> dict:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
     
-    result = loop.run_until_complete(service.analyze_symptom(symptom_text))
+    result = loop.run_until_complete(service.analyze_symptom(symptom_text, current_meds))
     
     return {
         "symptom_summary": result.symptom_summary,

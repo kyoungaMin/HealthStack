@@ -35,11 +35,85 @@ class PubMedService:
     
     BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     
+    
     def __init__(self):
         self.api_key = os.getenv("PUBMED_API_KEY", "")
+        self.genai_key = os.getenv("API_KEY", "")
         self.db = get_supabase_client()
+        
+        # Configure GenAI for translation
+        if self.genai_key:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=self.genai_key)
+                self.model = genai.GenerativeModel('gemini-2.0-flash')
+            except Exception as e:
+                print(f"GenAI Init Failed: {e}")
+                self.model = None
+        else:
+            self.model = None
+
+    async def translate_to_english(self, keyword_ko: str) -> str:
+        """한글 의학/식재료 키워드를 영문(MeSH Term)으로 변환"""
+        # 0. Try Google Translation API (REST) - User Suggestion
+        if self.genai_key:
+            try:
+                url = "https://translation.googleapis.com/language/translate/v2"
+                params = {
+                    "q": keyword_ko,
+                    "source": "ko",
+                    "target": "en",
+                    "format": "text",
+                    "key": self.genai_key
+                }
+                # Using requests (sync) for simplicity, matching existing style
+                resp = requests.post(url, params=params, timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if "data" in data and "translations" in data["data"]:
+                        return data["data"]["translations"][0]["translatedText"]
+                else:
+                     print(f"Translation API Error: {resp.status_code} {resp.text}")
+            except Exception as e:
+                print(f"Google Translate API Failed: {e}")
+
+        # 1. Try Gemini if available
+        if self.model:
+            try:
+                prompt = f"""
+                Translate the following Korean medical/food term into its most appropriate English scientific or MeSH term for PubMed search.
+                Only return the English term. No explanation.
+                
+                Korean: {keyword_ko}
+                English:
+                """
+                response = await self.model.generate_content_async(prompt)
+                return response.text.strip()
+            except Exception as e:
+                print(f"Gemini Translation error: {e}")
+                # Fallthrough to OpenAI
+        
+        # 2. Try OpenAI Fallback
+        try:
+            import openai
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if openai_key:
+                client = openai.AsyncOpenAI(api_key=openai_key)
+                response = await client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {"role": "system", "content": "Translate the Korean medical/food term to English MeSH term. Return only English text."},
+                        {"role": "user", "content": keyword_ko}
+                    ]
+                )
+                return response.choices[0].message.content.strip()
+        except Exception as e_openai:
+            print(f"OpenAI Translation Failed: {e_openai}")
+
+        return keyword_ko
+
     
-    def search_papers(
+    async def search_papers(
         self, 
         query: str, 
         max_results: int = 3,
@@ -56,6 +130,12 @@ class PubMedService:
         Returns:
             list[PubMedPaper]: 논문 목록
         """
+        if any(ord(char) > 127 for char in query):
+            # 한글 포함 시 자동 번역
+            translated_query = await self.translate_to_english(query)
+            print(f"Translated '{query}' -> '{translated_query}'")
+            query = translated_query
+
         # 캐시 확인
         if use_cache:
             cached = self._get_cached_papers(query)
@@ -76,7 +156,7 @@ class PubMedService:
         
         return papers
     
-    def search_by_symptom_and_ingredient(
+    async def search_by_symptom_and_ingredient(
         self, 
         symptom_id: int, 
         rep_code: str
@@ -119,7 +199,7 @@ class PubMedService:
             # AND로 조합
             query = f"({' OR '.join(symptom_terms)}) AND ({' OR '.join(ingredient_terms)})"
             
-            return self.search_papers(query, max_results=2)
+            return await self.search_papers(query, max_results=2)
             
         except Exception as e:
             print(f"증상-식재료 검색 오류: {e}")
@@ -262,10 +342,10 @@ class PubMedService:
             print(f"캐시 저장 오류: {e}")
 
 
-def search_pubmed_papers(query: str, max_results: int = 2) -> list[dict]:
+async def search_pubmed_papers(query: str, max_results: int = 2) -> list[dict]:
     """편의 함수: PubMed 논문 검색"""
     service = PubMedService()
-    papers = service.search_papers(query, max_results)
+    papers = await service.search_papers(query, max_results)
     
     return [
         {
@@ -281,20 +361,25 @@ def search_pubmed_papers(query: str, max_results: int = 2) -> list[dict]:
 
 
 if __name__ == "__main__":
-    # 테스트
-    queries = [
-        "ginger digestive function",
-        "jujube sleep improvement",
-        "radish stomach health"
-    ]
+    import asyncio
     
-    for query in queries:
-        print(f"\n{'='*50}")
-        print(f"검색: {query}")
-        print("="*50)
+    async def main():
+        # 테스트
+        queries = [
+            "ginger digestive function",
+            "도라지 기침",  # 한글 검색 테스트
+            "radish stomach health"
+        ]
         
-        papers = search_pubmed_papers(query)
-        for p in papers:
-            print(f"📄 {p['title'][:60]}...")
-            print(f"   {p['journal']} ({p['pub_year']})")
-            print(f"   {p['url']}")
+        for query in queries:
+            print(f"\n{'='*50}")
+            print(f"검색: {query}")
+            print("="*50)
+            
+            papers = await search_pubmed_papers(query)
+            for p in papers:
+                print(f"📄 {p['title'][:60]}...")
+                print(f"   {p['journal']} ({p['pub_year']})")
+                print(f"   {p['url']}")
+
+    asyncio.run(main())
