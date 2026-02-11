@@ -14,8 +14,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 from database.supabase_client import get_supabase_client
 from app.utils.cache_manager import CacheManager
-
-load_dotenv()
+try:
+    import google.genai as genai
+except ImportError:
+    import google.generativeai as genai
 
 
 @dataclass
@@ -117,6 +119,26 @@ class AnalyzeService:
         """
         증상 분석 핵심 로직
         """
+        # ★ 신규: 0차 - 유사도 기반 캐시 조회 (매우 빠름, 0.1초)
+        cache_key = f"{symptom_text}|{','.join(current_meds or [])}"
+        cached_result = self.cache.get_with_similarity("ai_analysis", cache_key, threshold=0.80)
+        
+        if cached_result:
+            print(f"✅ [Cache] 유사도 캐시 히트! 캐시된 분석 결과 반환 (0.1초)")
+            # 캐시된 결과를 AnalysisResult로 복원
+            try:
+                return AnalysisResult(
+                    symptom_summary=cached_result.get("symptom_summary"),
+                    ingredients=[Ingredient(**ing) for ing in cached_result.get("ingredients", [])],
+                    recipes=[Recipe(**rec) for rec in cached_result.get("recipes", [])],
+                    confidence_level=cached_result.get("confidence_level", "general"),
+                    source="cache_similarity",
+                    matched_symptom_name=cached_result.get("matched_symptom_name"),
+                    cautions=cached_result.get("cautions", [])
+                )
+            except Exception as e:
+                print(f"⚠️ 캐시 복원 오류: {e}, 일반 분석 진행")
+        
         # 1차: disease_master 정확 매칭
         matched = self._search_exact_symptom(symptom_text)
         
@@ -189,15 +211,11 @@ class AnalyzeService:
         DB에 레시피가 없을 때 AI로 생성하여 DB에 저장하고 반환
         """
         try:
-            import google.generativeai as genai
-            import json
-        
             api_key = os.getenv("API_KEY")
             if not api_key:
                 return []
 
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            client = genai.Client(api_key=api_key)
             
             prompt = f"""
             Role: Culinary Therapist
@@ -216,7 +234,10 @@ class AnalyzeService:
             ]
             """
             
-            response = await model.generate_content_async(prompt)
+            response = await client.aio.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
             text_response = response.text.strip().replace("```json", "").replace("```", "")
             data = json.loads(text_response)
             
@@ -290,69 +311,88 @@ class AnalyzeService:
             print(f"[Analysis] Empty symptom -> Inferred from meds: {symptom_text}")
 
         prompt = f"""
-        Role: Clinical Pharmacist & Oriental Medicine Doctor
-        Task: Analyze the inputs to INFER the user's underlying health condition/symptom.
-        
-        Input Data:
-        - User Symptom/Text: "{symptom_text}"
-        - Prescribed Meds: {current_meds if current_meds else "None"}
-        
-        CRITICAL INSTRUCTION:
-        1. If 'User Symptom' contains names of medications (e.g., Tylenol, Amlodipine) or is empty, **YOU MUST INFER the condition**.
-           - E.g., "Amlodipine" -> Infer "High Blood Pressure"
-           - E.g., "Metformin" -> Infer "Diabetes"
-           - E.g., "Tylenol" -> Infer "Pain/Headache"
-        2. DO NOT say "I cannot determine the symptom". Make a reasonable medical inference based on the drugs.
-        3. Based on the INFERRED symptom, recommend food ingredients and recipes.
-        
-        Output Format: JSON string ONLY.
+Role: Clinical Pharmacist & Oriental Medicine Doctor
+Task: Analyze the inputs to INFER the user's underlying health condition/symptom.
+
+Input Data:
+- User Symptom/Text: "{symptom_text}"
+- Prescribed Meds: {current_meds if current_meds else "None"}
+
+CRITICAL INSTRUCTION:
+1. If 'User Symptom' contains names of medications (e.g., Tylenol, Amlodipine) or is empty, **YOU MUST INFER the condition**.
+   - E.g., "Amlodipine" -> Infer "High Blood Pressure"
+   - E.g., "Metformin" -> Infer "Diabetes"
+   - E.g., "Tylenol" -> Infer "Pain/Headache"
+2. DO NOT say "I cannot determine the symptom". Make a reasonable medical inference based on the drugs.
+3. Based on the INFERRED symptom, recommend food ingredients and recipes.
+
+Output Format: JSON string ONLY (NO markdown, NO triple backticks).
+Return ONLY valid JSON, starting with {{ and ending with }}.
+DO NOT include ```json or ``` markers.
+
+{{
+    "symptom_name": "Inferred Symptom Name",
+    "summary": "Brief explanation of the Inferred Symptom in Korean (polite tone, ~해요체)",
+    "ingredients": [
         {{
-            "symptom_name": "Inferred Symptom Name",
-            "summary": "Brief explanation of the Inferred Symptom in Korean (polite tone, ~해요체)",
-            "ingredients": [
-                {{
-                    "name": "Ingredient Name (Korean)",
-                    "direction": "recommend" | "avoid",
-                    "rationale": "Why this is good/bad for the inferred symptom (Korean)"
-                }}
-            ],
-            "recipes": [
-                {{
-                    "title": "Recipe Title (Korean)",
-                    "description": "Brief description",
-                    "meal_slot": "breakfast" | "lunch" | "dinner" | "tea" | "snack",
-                    "rationale": "Why this recipe helps"
-                }}
-            ]
+            "name": "Ingredient Name (Korean)",
+            "direction": "recommend" | "avoid",
+            "rationale": "Why this is good/bad for the inferred symptom (Korean)"
         }}
-        
-        Constraints:
-        - Provide 3 ingredients (mix of recommend/avoid).
-        - Provide 2 recipes.
-        - Start rationale with the ingredient/recipe name.
-        
-        CRITICAL INSTRUCTION:
-        1. If 'User Symptom' contains prescription text or is unclear, **INFER the most likely symptom** from 'User Meds' or OCR text keywords.
-           (e.g., 'Tylenol' -> 'Pain/Headache', 'Mucosolvan' -> 'Cold/Cough', 'Amlodipine' -> 'Hypertension')
-        2. NEVER say "I cannot find the symptom" or "General advice". Always generate specific advice for the inferred symptom.
-        3. If inferred symptom is 'High Blood Pressure' or 'Diabetes', recommend 'Low Sodium' or 'Low GI' foods.
-        """
+    ],
+    "recipes": [
+        {{
+            "title": "Recipe Title (Korean)",
+            "description": "Brief description",
+            "meal_slot": "breakfast" | "lunch" | "dinner" | "tea" | "snack",
+            "rationale": "Why this recipe helps"
+        }}
+    ]
+}}
+
+Constraints:
+- Provide 3 ingredients (mix of recommend/avoid).
+- Provide 2 recipes.
+- Start rationale with the ingredient/recipe name.
+
+CRITICAL INSTRUCTION:
+1. If 'User Symptom' contains prescription text or is unclear, **INFER the most likely symptom** from 'User Meds' or OCR text keywords.
+   (e.g., 'Tylenol' -> 'Pain/Headache', 'Mucosolvan' -> 'Cold/Cough', 'Amlodipine' -> 'Hypertension')
+2. NEVER say "I cannot find the symptom" or "General advice". Always generate specific advice for the inferred symptom.
+3. If inferred symptom is 'High Blood Pressure' or 'Diabetes', recommend 'Low Sodium' or 'Low GI' foods.
+"""
         
         data = None
         source = "ai_generated_gemini"
 
         # 2. Try Gemini (Primary)
         try:
-            import google.generativeai as genai
             api_key = os.getenv("API_KEY")
             if not api_key:
                 raise ValueError("Google API Key not found")
 
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            client = genai.Client(api_key=api_key)
             
-            response = await model.generate_content_async(prompt)
-            text_response = response.text.strip().replace("```json", "").replace("```", "")
+            response = await client.aio.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
+            text_response = response.text.strip()
+            
+            # ★ 강화: 여러 형태의 마크로 제거 및 정제
+            if text_response.startswith('```'):
+                # 마크로 형태: ```json ... ``` 또는 ``` ... ```
+                text_response = text_response.split('```')[1]
+                if text_response.startswith('json'):
+                    text_response = text_response[4:]  # 'json' 제거
+                text_response = text_response.strip()
+            
+            # JSON 추출 (혹시 모를 추가 텍스트 포함 시)
+            if '{' in text_response and '}' in text_response:
+                start_idx = text_response.find('{')
+                end_idx = text_response.rfind('}') + 1
+                text_response = text_response[start_idx:end_idx]
+            
             data = json.loads(text_response)
             
         except Exception as e_gemini:

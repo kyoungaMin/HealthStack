@@ -1,90 +1,197 @@
 {
   "meta": {
-    "version": "1.0",
-    "last_updated": "2026-02-08",
-    "total_drugs": 100,
-    "source": "약사협회 의약품 데이터 + 의약품안전나라"
+    "version": "2.0",
+    "last_updated": "2026-02-11",
+    "total_drugs": 38,
+    "source": "공공데이터포털 e약은요 + 허가정보 API"
   },
   "drugs": {
     "아세로낙정": {
-      "name_ko": "아세로낙정",
+      "name_ko": "아세로낙정(아세클로페낙)",
       "name_en": "Aceclofenac",
       "classification": "소염진통제",
       "category": "NSAID",
-      "ingredients": ["아세클로페낙 100mg"],
-      "indication": "염증, 통증",
-      "common_side_effects": ["복부 불편감", "속쓰림"],
-      "interaction_risk": "medium"
+      "indication": "",
+      "common_side_effects": [
+        "복부 불편감",
+        "속쓰림",
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "(주)화이트생명과학",
+      "usage": "",
+      "precautions": "",
+      "storage": "기밀용기, 실온(1~30℃)보관",
+      "item_seq": "201309497",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "아세클로페낙 100mg"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "M01AB16"
     },
     "넥세라정": {
-      "name_ko": "넥세라정",
+      "name_ko": "넥세라정40밀리그램(에스오메프라졸마그네슘삼수화물)",
       "name_en": "Nexium",
       "classification": "제산제",
       "category": "PPI",
-      "ingredients": ["에소메프라졸 20mg", "에소메프라졸 40mg"],
-      "indication": "위산 억제, 위식도역류질환",
-      "common_side_effects": ["두통", "설사"],
-      "interaction_risk": "low"
+      "indication": "",
+      "common_side_effects": [
+        "두통",
+        "설사",
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "(주)화이트생명과학",
+      "usage": "",
+      "precautions": "1/100, 1/1,000, 1/10,000,",
+      "storage": "기밀용기, 실온(1∼30℃)보관",
+      "item_seq": "201601785",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "에소메프라졸 20mg",
+        "에소메프라졸 40mg"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "A02BC05"
     },
     "휴티렌투엑스정": {
-      "name_ko": "휴티렌투엑스정",
+      "name_ko": "휴티렌투엑스정(애엽95%에탄올연조엑스(20→1))",
       "name_en": "Hutyren X",
       "classification": "근이완제",
       "category": "Muscle Relaxant",
-      "ingredients": ["티아닐주정 4mg"],
-      "indication": "근육통, 경직",
-      "common_side_effects": ["졸음", "어지러움"],
-      "interaction_risk": "medium"
+      "indication": "",
+      "common_side_effects": [
+        "어지러움",
+        "졸음",
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "한국휴텍스제약(주)",
+      "usage": "",
+      "precautions": "",
+      "storage": "기밀용기, 실온(1-30°C)보관",
+      "item_seq": "201900155",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "티아닐주정 4mg"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "A02X"
     },
     "이트라펜세미정": {
       "name_ko": "이트라펜세미정",
       "name_en": "Itraphen Semi",
       "classification": "항진균제",
       "category": "Antifungal",
-      "ingredients": ["이트라코나졸 100mg"],
-      "indication": "진균 감염",
-      "common_side_effects": ["구역질", "복부 통증"],
-      "interaction_risk": "high"
+      "indication": "",
+      "common_side_effects": [
+        "구역질",
+        "복부 통증",
+        "정보 없음"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "(주)화이트생명과학",
+      "usage": "",
+      "precautions": "신체/기관분류 이상반응 대사 및 영양장애 식욕감퇴 정신장애 불면, 우울증 신경계장애 어지러움, 두통, 졸음 위장관장애 구역, 구토, 변비, 구내건조, 설사, 소화불량, 복통, 복부불편감, 방귀 피부 및 피하조직 장애 소양증, 발한, 발진 전신장애 및 투여부위 상태 피로 혈관장애 홍조 ]]> 신체/기관분류 이상반응 면역계 장애 두드러기, 과민증 대사 및 영양장애 저혈당 정신장애 불안, 신경과민, 감정 불안정, 도취감, 성욕 감소, 수면 장애, 착란, 방향감 장애, 흥분, 비정상적인 꿈, 약물 남용, 환각, 금단증후군 신경계장애 편두통...",
+      "storage": "밀폐용기, 실온(1-30℃) 보관",
+      "item_seq": "201403995",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "이트라코나졸 100mg"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "N02AJ13"
     },
     "에페신정": {
-      "name_ko": "에페신정",
+      "name_ko": "에페신정(에페리손염산염)",
       "name_en": "Ephesin",
       "classification": "감기약",
       "category": "Cold Medicine",
-      "ingredients": ["에페드린 25mg"],
-      "indication": "감기 증상 완화",
-      "common_side_effects": ["불안감", "불면"],
-      "interaction_risk": "medium"
+      "indication": "",
+      "common_side_effects": [
+        "불안감",
+        "정보 없음",
+        "불면"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "명문제약(주)",
+      "usage": "",
+      "precautions": "",
+      "storage": "밀폐용기, 실온(1~30℃)보관",
+      "item_seq": "199302810",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "에페드린 25mg"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "M03BX09"
     },
     "감기약": {
       "name_ko": "감기약",
       "name_en": "Cold Medicine",
       "classification": "감기약",
       "category": "OTC",
-      "aliases": ["일반감기약", "종합감기약"],
+      "aliases": [
+        "일반감기약",
+        "종합감기약"
+      ],
       "indication": "감기 증상",
-      "common_side_effects": ["졸음", "구강 건조"],
+      "common_side_effects": [
+        "졸음",
+        "구강 건조"
+      ],
       "interaction_risk": "low"
     },
     "타이레놀": {
-      "name_ko": "타이레놀",
+      "name_ko": "타이레놀콜드-에스정",
       "name_en": "Tylenol",
       "classification": "해열진통제",
       "category": "Analgesic",
-      "aliases": ["아세트아미노펜", "아세타미노펜"],
-      "ingredients": ["아세트아미노펜 500mg"],
-      "indication": "발열, 통증",
-      "common_side_effects": ["드물음"],
-      "interaction_risk": "low"
+      "indication": "이 약은 감기의 제증상(여러증상)(콧물, 코막힘, 재채기, 인후(목구멍)통, 기침, 오한(춥고 떨리는 증상), 발열, 두통, 관절통, 근육통)의 완화에 사용합니다.",
+      "common_side_effects": [
+        "변비",
+        "식욕부진",
+        "드물음",
+        "발진·발적(충혈되어 붉어짐)",
+        "구역·구토"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "한국존슨앤드존슨판매(유)",
+      "usage": "만 15세 이상은 1회 1정씩, 1일 3회 식후 30분에 복용합니다.",
+      "precautions": "이 약에 과민증 또는 경험자, 다른 해열진통제, 감기약 복용 시 천식을 일으킨 적이 있는 사람, 만 3개월 미만의 영아(갓난아기), 중증 또는 조절되지 않는 고혈압 환자는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 만 2세 미만의 영·유아, 황색 4호, 황색 5호에 과민증 또는 경험자, 수두 또는 인플루엔자에 감염되어 있거나 또는 의심되는 영아 및 만 15세 미만의 어린이, 알레르기 체질, 약에 의한 알레르기(발열, 발진, 관절통, 천식, 가려움증 등) 경험자, 간장질환, 신장질환, 심장질환, 갑상선질환, 당뇨병, 고혈압,...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "202106954",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1OKRXo9l4Df",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "아세트아미노펜 500mg"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R05X",
+      "aliases": [
+        "아세트아미노펜",
+        "아세타미노펜"
+      ]
     },
     "무": {
       "name_ko": "무",
       "name_en": "Radish",
       "classification": "식품/한약재",
       "category": "Food",
-      "aliases": ["흰무", "우엉"],
+      "aliases": [
+        "흰무",
+        "우엉"
+      ],
       "indication": "소화 촉진, 기침 완화",
-      "common_side_effects": ["드물음"],
+      "common_side_effects": [
+        "드물음"
+      ],
       "interaction_risk": "none"
     },
     "생강": {
@@ -92,9 +199,14 @@
       "name_en": "Ginger",
       "classification": "식품/한약재",
       "category": "Food",
-      "aliases": ["생강차", "건생강"],
+      "aliases": [
+        "생강차",
+        "건생강"
+      ],
       "indication": "구역질 완화, 항염",
-      "common_side_effects": ["드물음"],
+      "common_side_effects": [
+        "드물음"
+      ],
       "interaction_risk": "low"
     },
     "대추": {
@@ -102,10 +214,800 @@
       "name_en": "Jujube",
       "classification": "식품/한약재",
       "category": "Food",
-      "aliases": ["붉은대추"],
+      "aliases": [
+        "붉은대추"
+      ],
       "indication": "면역력 강화",
-      "common_side_effects": ["드물음"],
+      "common_side_effects": [
+        "드물음"
+      ],
       "interaction_risk": "none"
+    },
+    "게보린소프트연질캡슐": {
+      "name_ko": "게보린소프트연질캡슐",
+      "name_en": "Ibuprofen/Pamabrom",
+      "classification": "해열진통제",
+      "category": "Analgesic",
+      "indication": "이 약은 두통, 치통, 발치후 동통(통증), 인후(목구멍)통, 귀의 통증, 관절통, 신경통, 요통, 근육통, 견통(어깨결림), 타박통, 골절통, 염좌통(삠통증), 월경통(생리통), 외상통의 진통, 오한(춥고 떨리는 증상), 발열시의 해열에 사용합니다.",
+      "common_side_effects": [
+        "변비",
+        "식욕부진",
+        "발진·발적(충혈되어 붉어짐)",
+        "구역·구토",
+        "가려움"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "삼진제약(주)",
+      "usage": "만 11세 이상 및 성인은 1회 1캡슐씩 1일 1~3회 공복(빈 속)시를 피하여 복용합니다. 복용간격은 4시간 이상으로 합니다.",
+      "precautions": "이 약에 과민증 환자, 이 약 또는 다른 해열진통제, 감기약에 천식 경험자, 만 3개월 미만의 영아(갓난아기)는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 수두 또는 인플루엔자에 감염되어 있거나 또는 의심되는 영아(갓난아기) 및 만 15세 미만의 어린이, 알레르기 체질, 알레르기 반응(발열, 발진, 관절통, 천식, 가려움증 등) 경험자, 간장질환, 신장(콩팥)질환, 갑상선질환, 당뇨병, 고혈압 등이 있는 사람, 몸이 약한 사람 또는 고열이 있는 사람, 고령자(노인), 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부,...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "201908295",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1OcIzQG1ql0",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "이부프로펜 250.00밀리그램",
+        "파마브롬 25.00밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "M01AE51"
+    },
+    "펜잘큐정": {
+      "name_ko": "펜잘큐정",
+      "name_en": "Acetaminophen/Anhydrous Caffeine/Ethenzamide",
+      "classification": "해열진통제",
+      "category": "Analgesic",
+      "indication": "이 약은 두통, 치통, 발치(이를 뽑음)후 동통(통증), 인후통, 귀의 통증, 관절통, 신경통, 허리통, 근육통, 어깨결림, 타박통, 골절통, 염좌통(삔 통증), 월경통(생리통), 외상(상처)통의 진통, 오한, 발열 시의 해열에 사용합니다.",
+      "common_side_effects": [
+        "발진·발적(충혈되어 붉어짐)",
+        "가려움",
+        "구역·구토",
+        "식욕부진",
+        "변비"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "(주)종근당",
+      "usage": "만 15세 이상 및 성인은 1회 1정씩, 만 11세 이상~만 15세 미만은 1회 1/2 ~ 2/3정씩, 만 8세 이상~만 11세 미만은 1회 1/2정씩, 1일 3회 빈 속을 피하여 4시간 이상 간격을 두고 복용합니다.",
+      "precautions": "이 약에 과민증 환자 또는 다른 해열진통제, 감기약 복용 시 천식 경험자, 만 3개월 미만의 영아 및 만 2세 미만의 소아는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 수두 또는 인플루엔자에 감염되어 있거나 또는 의심되는 영아 및 만 15세 미만의 어린이, 알레르기 체질, 약에 의한 알레르기 증상(예: 발열, 발진, 관절통, 천식, 가려움증 등) 경험자, 간장질환, 신장질환, 심장질환, 갑상선질환, 당뇨병, 고혈압, 몸이 약한 사람, 고열, 고령자, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 속쓰림, 위부불쾌...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200810700",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1P3diGKSCsx",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "아세트아미노펜 300.00밀리그램",
+        "카페인무수물 50.00밀리그램",
+        "에텐자미드 200.00밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "N02BE51"
+    },
+    "어린이부루펜시럽(이부프로펜)": {
+      "name_ko": "어린이부루펜시럽(이부프로펜)",
+      "name_en": "Ibuprofen",
+      "classification": "소염진통제",
+      "category": "NSAID",
+      "indication": "이 약은 류마티양 관절염, 연소성 류마티양 관절염, 골관절염, 감기로 인한 발열 및 동통, 요통, 월경곤란증, 수술후 동통과 강직성 척추염, 두통, 치통, 근육통, 신경통, 급성통풍, 건선성 관절염, 연조직손상(염좌, 좌상), 비관절 류마티스질환(건염, 건초염, 활액낭염)에 사용합니다.",
+      "common_side_effects": [
+        "쇽 증상(호흡곤란",
+        "혈압저하 등)",
+        "헤마토크릿 감소",
+        "헤모글로빈 감소",
+        "빈혈"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "삼일제약(주)",
+      "usage": "류마티양 관절염, 골관절염, 강직성 척추염, 연조직손상, 비관절 류마티스질환, 급성통풍, 건선성 관절염에 성인은 1회 200-600 mg씩, 1일 3-4회 복용합니다. 1일 최고 3,200 mg까지 투여할 수 있습니다. 연소성 류마티양 관절염에 체중(kg)당 1회 30-40 mg씩, 1일 3~4회 복용합니다. 경증 및 중등도의 동통, 감기에 성인은 1회 200-400 mg씩, 1일 3~4회 복용합니다. 연령, 증상에 따라 적절히 증감할 수 있습니다. 어린이의 경우 11~14세는 200-250 mg(10~13 ml)씩, 7~10세는 ...",
+      "precautions": "이 약에 과민증 환자, 위장관 궤양, 위장관 출혈 또는 경험자, 심한 혈액이상, 간장애, 신장장애, 심장기능부전, 고혈압, 기관지천식 또는 경험자, 아스피린이나 다른 비스테로이드성 소염진통제(COX-2 저해제 포함)에 대하여 천식, 두드러기 또는 알레르기 반응 경험자, 관상동맥(심장동맥) 우회로술(CABG) 전후 통증발생 환자, 임신 말기 3개월 기간에 해당하는 임부, 항암요법으로 고용량 메토트렉세이트를 투여중인 환자, 갈락토오스 불내성, Lapp 유당분해효소 결핍증 또는 포도당-갈락토오스 흡수장애 등의 유전적인 문제가 있는 환자는...",
+      "storage": "빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "198601920",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "이부프로펜 2그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "M01AE01"
+    },
+    "베아제정": {
+      "name_ko": "베아제정",
+      "name_en": "Diastase·Protease·Cellulase/Lipase/Pancellase/Pancreatin Enteric Coated Granules/Panprosin/Simethicone/Ursodeoxycholic Acid",
+      "classification": "소화제",
+      "category": "Digestive",
+      "indication": "이 약은 소화불량, 식욕감퇴(식욕부진), 과식, 체함, 소화촉진, 소화불량으로 인한 위부팽만감에 사용합니다.",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "(주)대웅제약",
+      "usage": "성인 1회 1정 1일 3회 식후에 복용합니다.",
+      "precautions": "만 7세 이하의 어린이는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 알레르기 체질인 환자, 임부 또는 임신하고 있을 가능성이 있는 여성은 의사 또는 약사와 상의하십시오. 정해진 용법과 용량을 잘 지키십시오. 2주 정도 복용하여도 증상의 개선이 없을 경우 복용을 즉각 중지하고 의사 또는 약사와 상의하십시오.",
+      "storage": "습기와 빛을 피해 서늘한 곳에 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "198700405",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/148647963523800116",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "디아스타제·프로테아제·셀룰라제 50밀리그램",
+        "리파제 15밀리그램",
+        "판프로신 20밀리그램",
+        "판셀라제 30밀리그램",
+        "판크레아틴장용과립 78.6밀리그램",
+        "우르소데옥시콜산 10밀리그램",
+        "시메티콘 40밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A09A"
+    },
+    "훼스탈골드정": {
+      "name_ko": "훼스탈골드정",
+      "name_en": "Cellulase/Diastase·Protease·Cellulase/Lipase/Pancreatin/Prozyme 6/Simethicone/Ursodeoxycholic Acid",
+      "classification": "소화제",
+      "category": "Digestive",
+      "indication": "이 약은 소화불량, 식욕감퇴(식욕부진), 과식, 체함, 소화촉진, 소화불량으로 인한 위부팽만감에 사용합니다.",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "(주)한독",
+      "usage": "성인은 1회 1정씩, 1일 3회 식후에 씹지말고 복용합니다.",
+      "precautions": "만 7세 이하의 어린이는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 알레르기 체질인 환자, 임부 또는 임신하고 있을 가능성이 있는 여성은 의사 또는 약사와 상의하십시오. 정해진 용법과 용량을 잘 지키십시오. 2주 정도 복용하여도 증상의 개선이 없을 경우 복용을 즉각 중지하고 의사 또는 약사와 상의하십시오.",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "199900926",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1OqWQSX8FYq",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "판크레아틴 150밀리그램",
+        "디아스타제·프로테아제·셀룰라제 10밀리그램",
+        "프로자임6 10밀리그램",
+        "리파제 15밀리그램",
+        "셀룰라제 9밀리그램",
+        "우르소데옥시콜산 20밀리그램",
+        "시메티콘 60밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A09A"
+    },
+    "겔포스엠현탁액": {
+      "name_ko": "겔포스엠현탁액",
+      "name_en": "Aluminium Phosphate Gel/Magnesium Hydroxide/Simethicone",
+      "classification": "제산제",
+      "category": "PPI",
+      "indication": "이 약은 위산과다(위염, 위·십이지장궤양에 관련된 것도 포함), 속쓰림, 위부불쾌감, 위부팽만감, 체함, 구역, 구토, 위통, 신트림에 사용합니다.",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "(주)보령",
+      "usage": "성인 1회 1포씩, 1일 3회 식간(식사 때와 식사 때 사이) 및 취침 시 복용합니다. 복용간격은 4시간 이상으로 합니다.",
+      "precautions": "3개월 미만의 영아는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 1세 미만의 영아, 신장애 환자는 의사 또는 약사와 상의하십시오. 정해진 용법과 용량을 잘 지키십시오.",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "199400883",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "인산알루미늄겔 61.9그램",
+        "수산화마그네슘 2.0그램",
+        "시메티콘 0.2그램",
+        "인산알루미늄겔 61.9그램",
+        "수산화마그네슘 2.0그램",
+        "시메티콘 0.2그램",
+        "인산알루미늄겔 61.9그램",
+        "수산화마그네슘 2.0그램",
+        "시메티콘 0.2그램",
+        "인산알루미늄겔 61.9그램",
+        "수산화마그네슘 2.0그램",
+        "시메티콘 0.2그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A02AF02"
+    },
+    "개비스콘페퍼민트현탁액": {
+      "name_ko": "개비스콘페퍼민트현탁액",
+      "name_en": "Calcium Carbonate/Sodium Alginate/Sodium Bicarbonate",
+      "classification": "제산제",
+      "category": "PPI",
+      "indication": "이 약은 산 역류, 속쓰림, 위 내용물의 역류로 인한 소화불량 (예를 들어 식사 후, 임신 중, 역류성 식도염과 동반하는 경우의)에 사용합니다.",
+      "common_side_effects": [
+        "매우 극소수의 가려움이나 기관지 수축",
+        "아나필락시스 반응과 같은 알레르기 반응",
+        "가끔 설사"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "(유)옥시레킷벤키저",
+      "usage": "성인은 1회 1~2포 (10~20 mL)을 1일 4회(식후 및 취침전) 복용합니다.",
+      "precautions": "이 약에 과민증 환자는 이 약을 복용하지 마십시오.이 약을 복용하기 전에 울혈심부전, 신장애, 고칼슘혈증, 신석회침착증과 재발성 칼슘함유 신결석 환자, 12세 미만의 어린이는 의사 또는 약사와 상의하십시오.복용 7일 후에도 증상이 개선되지 않을 경우 복용을 중지하고 의사 또는 약사와 상의하십시오.",
+      "storage": "실온에서 보관하십시오.어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200606295",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "알긴산나트륨 5.000그램",
+        "탄산수소나트륨 2.670그램",
+        "탄산칼슘 1.600그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A02BX"
+    },
+    "지르텍정(세티리진염산염)": {
+      "name_ko": "지르텍정(세티리진염산염)",
+      "name_en": "Cetirizine Hydrochloride",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 계절성 및 다년성 알레르기성 비염, 알레르기성 결막염, 만성 특발성 두드러기, 피부가려움증과 하이드로코티손 외용제와 병용에 의한 습진, 피부염에 사용합니다.",
+      "common_side_effects": [
+        "졸음",
+        "두통",
+        "때때로 권태감",
+        "마비감",
+        "무력증"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "한국유씨비제약(주)",
+      "usage": "성인 및 6세 이상의 소아는 1일 1회 1정(10 mg)을 취침 전에 복용하고, 이상반응에 민감한 환자의 경우는 1/2정(5 mg)씩을 아침, 저녁에 분할 복용합니다. 연령, 증상에 따라 적절히 증감합니다. 신장애 환자의 투여 간격은 환자의 신기능에 따라 조절되어야 하고, 신장애를 가진 소아 환자는 환자의 신 청소율과 체중을 고려하여 개별적으로 용량을 조절해야 하므로 자세한 사항은 허가사항을 참고하십시오.",
+      "precautions": "이 약 및 히드록시진 또는 피페라진 유도체에 과민증 환자, 신부전 환자(크레아티닌 청소율 이 약을 복용하기 전에 신장애, 간장애 환자, 노인, 간질 및 발작 위험성이 있는 환자, 소변고임의 선행요인(척수 병변, 전립선 비대증)이 있는 환자, 임부, 수유부는 의사 또는 약사와 상의하십시오.",
+      "storage": "실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200610765",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1Pe072ka2fV",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "세티리진염산염 10밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R06AE07"
+    },
+    "알레그라정120밀리그람(펙소페나딘염산염)": {
+      "name_ko": "알레그라정120밀리그람(펙소페나딘염산염)",
+      "name_en": "Fexofenadine Hydrochloride",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 알레르기비염 증상 완화에 사용합니다.",
+      "common_side_effects": [
+        "홍조 등)",
+        "가슴통증",
+        "쇽 증상(호흡곤란",
+        "혈관부종",
+        "혈압저하"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "(주)한독",
+      "usage": "성인 및 12세 이상 청소년은 1일 1회 120 mg을 식사전 물과 함께 복용합니다. 신부전 환자는 시작용량으로서 1일 1회 60 mg을 식사전 물과 함께 복용합니다.",
+      "precautions": "이 약에 과민증 환자는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 신부전 환자, 고령자, 심혈관질환 환자 또는 경험자, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 저체중신생아, 신생아, 12세 미만의 소아는 의사 또는 약사와 상의하십시오.",
+      "storage": "실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "199801016",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1OlTcytjZI_",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "펙소페나딘염산염 120밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R06AX26"
+    },
+    "클라리틴정(로라타딘)": {
+      "name_ko": "클라리틴정(로라타딘)",
+      "name_en": "Loratadine",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 알레르기성 비염(재채기, 코막힘, 가려움, 눈의 작열감), 만성 특발성(원인 불명의) 두드러기에 사용합니다.",
+      "common_side_effects": [
+        "진정작용",
+        "항콜린작용",
+        "두통",
+        "실신",
+        "졸음"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "바이엘코리아(주)",
+      "usage": "성인 및 12세 이상의 소아는 1일 1회 1정(10 mg) 복용합니다.6~12세 미만의 소아는 체중이 30 kg이상인 경우 1일 1회 1정(10 mg), 30 kg이하인 경우 1일 1회 1/2정(5 mg) 복용합니다.연령, 증상에 따라 적절히 증감합니다.",
+      "precautions": "이 약에 과민증 환자, 만 6세 미만의 소아, 임부 및 수유부,갈락토오스 불내성, Lapp 유당분해효소 결핍증 또는 포도당-갈락토오스 흡수장애 등의 유전적인 문제가 있는 환자는 이 약을 복용하지 마십시오.이 약을 복용하기 전에 간장애, 신부전 환자는 의사 또는 약사와 상의하십시오.",
+      "storage": "실온에서 보관하십시오.어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200905692",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1Oikd3yeZPX",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "로라타딘 10밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R06AX13"
+    },
+    "판콜에이내복액": {
+      "name_ko": "판콜에이내복액",
+      "name_en": "Acetaminophen/Anhydrous Caffeine/Chlorpheniramine Maleate/Guaifenesin/Pentoxyverine Citrate/Phenylephrine Hydrochloride",
+      "classification": "감기약",
+      "category": "Cold Medicine",
+      "indication": "이 약은 감기의 여러 증상(콧물, 코막힘, 재채기, 인후(목구멍)통, 기침, 가래, 오한(춥고 떨리는 증상), 발열, 두통, 관절통, 근육통)의 완화에 사용합니다.",
+      "common_side_effects": [
+        "발진",
+        "발적",
+        "가려움",
+        "구역",
+        "구토"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "동화약품(주)",
+      "usage": "성인 1회 1병(30 mL)씩, 1일 3회 식후 30분에 복용합니다.",
+      "precautions": "이 약에 과민증 환자 및 경험자, 다른 해열진통제, 감기약 복용 시 천식 경험자, 만 3개월 미만의 영아, MAO억제제(항우울제, 항정신병제, 감정조절제, 항파킨슨제 등)를 복용하고 있거나 복용을 중단한 후 2주 이내의 사람은 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 수두 또는 인플루엔자에 감염되어 있거나 또는 의심되는 영아 및 만 15세 미만의 어린이, 만 2세 미만의 소아, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 고령자, 몸이 약한 사람, 알레르기 체질, 알레르기 증상(발열, 발진, 관절통, 천식, ...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "196800036",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "아세트아미노펜 300.0밀리그램",
+        "구아이페네신 80.0밀리그램",
+        "펜톡시베린시트르산염 15.0밀리그램",
+        "페닐레프린염산염 10.0밀리그램",
+        "클로르페니라민말레산염 2.5밀리그램",
+        "카페인무수물 30.0밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R05X"
+    },
+    "콘택골드캡슐": {
+      "name_ko": "콘택골드캡슐",
+      "name_en": "Belladonna Total Alkaloid/Chlorpheniramine Maleate/Phenylephrine Hydrochloride",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 코감기, 알레르기성 비염 또는 부비강염에 의한 코막힘, 콧물, 재채기, 눈물, 인후통, 머리 무거움 완화에 사용합니다.",
+      "common_side_effects": [
+        "출혈성뇌졸중",
+        "구역·구토",
+        "목마름(지속적이거나 심한)",
+        "변비",
+        "식욕부진"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "(주)유한양행",
+      "usage": "만 15세 이상 및 성인은 1회 1캡슐씩, 만 11세 이상~만 15세 미만은 1회 2/3캡슐씩, 만 8세 이상~만 11세 미만은 1회 1/2캡슐씩, 1일 3회 식후마다 복용합니다.",
+      "precautions": "이 약에 과민증 환자, 만 3개월 미만의 영아 및 만 2세 미만의 소아, MAO억제제(항우울제, 항정신병제, 감정조절제, 항파킨슨제 등)를 복용하고 있거나 복용을 중단한 후 2주 이내의 사람은 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 황색4호·황색5호에 과민증 또는 알레르기 반응 경험자, 알레르기 체질, 약에 의한 알레르기 증상(예: 발열, 발진, 관절통, 천식, 가려움증 등) 경험자, 고혈압, 심장질환, 녹내장(예: 눈의 통증, 눈이 침침함 등), 배뇨곤란, 갑상선질환, 당뇨병, 몸이 약한 사람, 고열, 임부 또는 임신...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200607735",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/147427262812300123",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "클로르페니라민말레산염 3.00밀리그램",
+        "벨라돈나총알칼로이드 0.133밀리그램",
+        "페닐레프린염산염 10.00밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R06AB54"
+    },
+    "대웅우루사연질캡슐": {
+      "name_ko": "대웅우루사연질캡슐",
+      "name_en": "Riboflavin/Thiamine Nitrate/Ursodeoxycholic Acid",
+      "classification": "간장약",
+      "category": "Hepatoprotective",
+      "indication": "이 약은 만성 간질환의 간기능 개선과 간기능 장애에 의한 육체피로, 전신권태 증상의 개선에 사용합니다.",
+      "common_side_effects": [
+        "설사",
+        "구역",
+        "구토",
+        "배 아픔",
+        "변비"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "(주)대웅제약",
+      "usage": "성인은 1회 1캡슐씩, 1일 3회 복용합니다.",
+      "precautions": "이 약에 과민증 환자, 심한 담도폐쇄, 전격성 간염, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 소아, 크론병과 같은 대장 및 소장염, 방사선 비투과성 석회화된 담석, 비기능성 담낭(쓸개), 급성 담낭(쓸개)염, 신질환, 소화성궤양(급성 위ㆍ십이지장 궤양) 환자, 대두유·콩·땅콩 과민증 또는 알레르기 반응 경험자는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 심한 췌장(이자)질환, 담석증, 고지단백혈증, 당뇨병성고지질혈증 및 췌장염 등 지방대사 이상 환자 또는 지질성 유제를 신중히 투여해야 하는 환자, 황색4호...",
+      "storage": "어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "197000040",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1PEPKBUcd74",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "우르소데옥시콜산 50밀리그램",
+        "티아민질산염 10밀리그램",
+        "리보플라빈 5밀리그램",
+        "우르소데옥시콜산 50밀리그램",
+        "티아민질산염 10밀리그램",
+        "리보플라빈 5밀리그램",
+        "우르소데옥시콜산 50밀리그램",
+        "티아민질산염 10밀리그램",
+        "리보플라빈 5밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A05AA"
+    },
+    "보송크림(프레드니솔론발레로아세테이트)": {
+      "name_ko": "보송크림(프레드니솔론발레로아세테이트)",
+      "name_en": "Prednisolone Valeroacetate",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 습진, 피부염군(진행성 지장각피증, 만성단순태선 포함), 양진(가려움발진)군(구진두드러기 포함), 벌레물린데, 건선, 손바닥 및 발바닥 농포증에 사용합니다.",
+      "common_side_effects": [
+        "백선",
+        "전염성 농가진",
+        "칸디다증",
+        "부스럼",
+        "모낭염"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "안국약품(주)",
+      "usage": "1일 수회 적당량을 환부에 바르고 증상에 따라 적절히 증감합니다.",
+      "precautions": "이 약에 과민증 환자, 피부감염증(결핵, 매독, 칸디다증, 백선, 대상포진, 단순포진, 수두, 종두증, 옴, 사면발이), 고막 천공이 있는 습진성 외이도염, 궤양(베체트병 제외), 제2도 심재성 이상의 화상 및 동상, 입주위피부염, 보통여드름, 주사 환자는 이 약을 사용하지 마십시오.이 약을 사용하기 전에 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 유ㆍ소아, 고령자는 의사 또는 약사와 상의하십시오.안과용으로 사용하지 마십시오.화장이나 면도 후 치료 이외의 목적으로 사용하지 마십시오.의사의 감독 없이 밀봉붕대법을 사용하...",
+      "storage": "실온에서 보관하십시오.어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "199100989",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "프레드니솔론발레로아세테이트 3.0밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "D07AA03"
+    },
+    "까스활명수큐액": {
+      "name_ko": "까스활명수큐액",
+      "name_en": "Atractylodes Rhizome/Capsicum Tincture/Cinnamon Bark/Citrus Unshiu Peel/Clove/Corydalis Tuber/Gambir/Ginger/L-Menthol/Magnolia Bark/Nutmeg",
+      "classification": "소화제",
+      "category": "Digestive",
+      "indication": "이 약은 식욕감퇴(식욕부진), 위부팽만감, 소화불량, 과식, 체함, 구역, 구토에 사용합니다.",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "동화약품(주)",
+      "usage": "만 15세 이상 및 성인은 1회 1병(75 mL), 만 11세 이상~만 15세 미만은 1회 2/3병(50 mL), 만 8세 이상~만 11세 미만은 1회 1/2병(37.5 mL), 만 5세 이상~만 8세 미만은 1회 1/3병(25 mL), 만 3세 이상~만 5세 미만은 1회 1/4병(18.75 mL), 만 1세 이상~만 3세 미만은 1회 1/5병(15 mL), 1일 3회 식후에 복용합니다. 복용간격은 4시간 이상으로 합니다.",
+      "precautions": "만 3개월 미만의 젖먹이에게 사용하지 마십시오. 이 약을 복용하기 전에 이 약에 과민증 환자, 만 1세 미만의 젖먹이, 임부 또는 임신하고 있을 가능성이 있는 여성, 나트륨 제한 식이를 하는 사람은 의사 또는 약사와 상의하십시오. 어린이에게 투여할 경우 보호자의 지도 감독하에 투여하십시오. 정해진 용법과 용량을 잘 지키십시오. 1개월 정도 복용하여도 증상의 개선이 없는 경우 복용을 즉각 중지하고 의사 또는 약사와 상의하십시오.",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "198900667",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "아선약 100.0밀리그램",
+        "후박 50.0밀리그램",
+        "창출 3.0밀리그램",
+        "L-멘톨 16.0밀리그램",
+        "진피 250.0밀리그램",
+        "고추틴크 0.06밀리리터",
+        "현호색 180.0밀리그램",
+        "육계 30.0밀리그램",
+        "정향 12.0밀리그램",
+        "건강 12.0밀리그램",
+        "육두구 6.0밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A09A"
+    },
+    "스트렙실허니앤레몬트로키(플루르비프로펜), 스트렙실오렌지트로키(플루르비프로펜)": {
+      "name_ko": "스트렙실허니앤레몬트로키(플루르비프로펜), 스트렙실오렌지트로키(플루르비프로펜)",
+      "name_en": "Flurbiprofen",
+      "classification": "기타",
+      "category": "Other",
+      "indication": "이 약은 인후염의 단기 증상 완화에 사용합니다.",
+      "common_side_effects": [
+        "두통",
+        "어지러움",
+        "불면증",
+        "졸림",
+        "시각장애"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "(유)옥시레킷벤키저",
+      "usage": "성인, 12세 이상 어린이 및 청소년은 이 약 1개를 입안에서 서서히 녹여서 복용합니다. 국소 자극을 피하기 위해 입안에서 굴리면서 복용합니다. 필요시 3~6시간 간격으로 1일 최대 5개를 복용하며 최대 3일간 사용하십시오.",
+      "precautions": "이 약 또는 아스피린, 다른 비스테로이드성 소염진통제에 과민증 환자, 소화성궤양, 출혈, 아스피린 또는 다른 비스테로이드성 소염진통제에 의한 천식(천식발작 포함), 두드러기, 기관지경련, 비염 또는 경험자, 중증 심기능부전, 비스테로이드성 소염진통제, 항류마티스제에 의한 위장관 출혈 또는 천공, 중증 대장염, 중증 혈액 이상 환자, 불분명한 조혈장애, 중증 간장애, 중증 신장애, 임신 후기 3개월인 임부, 유전성 과당 불내증, 포도당-갈락토오스 흡수장애, 백당-이소말타아제 결핍증 환자는 이 약을 복용하지 마십시오. 이 약을 복용하기...",
+      "storage": "실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200906877",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1NqFP7I3D40",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "플루르비프로펜 8.75밀리그램",
+        "플루르비프로펜 8.75밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "R02AX01"
+    },
+    "둘코락스에스장용정": {
+      "name_ko": "둘코락스에스장용정",
+      "name_en": "Bisacodyl/Docusate Sodium",
+      "classification": "기타",
+      "category": "Other",
+      "indication": "이 약은 변비와 변비에 수반하는 식욕부진(식욕감퇴), 복부팽만, 장내이상발효, 치질의 완화에 사용합니다.",
+      "common_side_effects": [
+        "발진ㆍ충혈되어 붉어짐",
+        "가려움",
+        "심한 복통(배 아픔)",
+        "설사",
+        "구토"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "오펠라헬스케어코리아(주)",
+      "usage": "만 15세 이상은 1회 2정, 만 11 이상~만 15세 미만은 1회 1~2정, 만 7세 이상~만 11세 미만은 1회 1정, 1일 1회 취침 시에 복용합니다.다만, 초회는 최소량을 복용하고 변의 모양과 상태를 보면서 조금씩 증량 또는 감량합니다.",
+      "precautions": "이 약에 과민증 환자, 급성 복부질환(충수염, 장출혈, 궤양성 결장염 등), 장폐색(창자막힘), 구역, 구토를 동반하는 중증의 복부(배부분)통증, 수분 및 전해질 불균형 환자(심한 탈수 상태), 7세 이하의 어린이는 이 약을 복용하지 마십시오.이 약을 복용하기 전에 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 직장의 출혈 혹은 장부전 경험자, 10세 이하의 소아, 나트륨 제한식이를 하고 있는 사람은 의사 또는 약사와 상의하십시오.정해진 용법과 용량을 잘 지키십시오.어린이에게 투여할 경우 보호자의 지도 감독하에 투여하십시...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오.어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200906478",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1O597tTUEdP",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "비사코딜 5.000밀리그램",
+        "도큐세이트나트륨 16.750밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "A06AB52"
+    },
+    "니코틴엘TTS10(니코틴)": {
+      "name_ko": "니코틴엘TTS10(니코틴)",
+      "name_en": "Nicotine",
+      "classification": "기타",
+      "category": "Other",
+      "indication": "이 약은 금연시 보조 요법제로 사용합니다.",
+      "common_side_effects": [
+        "작열감(화끈감)",
+        "초조",
+        "수포",
+        "홍반(붉은 반점)",
+        "피부 발진 또는 적용 부위의 조임"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "지피테라퓨틱스코리아주식회사",
+      "usage": "성인 1일 1회 1매씩 털이 없는 신체부분(엉덩이, 팔안쪽 등)에 부착하되, 매일 부착부위를 바꾸어 사용합니다.니코틴엘 TTS 30은 일반적으로 하루 담배 20개비 이상 흡연가에게 적용하고 니코틴엘 TTS 20은 하루 20개비까지의 흡연가에게 적용합니다.니코틴엘 TTS 10은 마지막 단계에 니코틴 보충을 감소시키는데 적용합니다.심한 흡연가의 경우 니코틴엘 TTS 30으로 시작하고 그 다음에는 니코틴엘 TTS 20, 그리고 마지막으로 니코틴엘 TTS 10의 순서로 각각 4주동안 적용합니다.보통 흡연가의 경우 니코틴엘 TTS 20을 8...",
+      "precautions": "이 약에 과민증 환자, 만성피부질환(건선, 만성피부염, 두드러기), 전신적인 피부질환, 과민성피부염, 불안정 협심증, 협심증 악화, 최근 3개월 이내에 심근경색을 경험한 환자, 급성 경색증 후기, 중증의 심부정맥, 전신 고혈압, 말초혈관질환, 뇌혈관질환(급성 뇌졸중, 뇌혈관 이상), 임부 및 수유부, 18세 미만의 소아 및 청소년, 비흡연자 및 일시적 흡연자는 이 약을 사용하지 마십시오.이 약을 사용하기 전에 위염, 소화성궤양, 폐색성 동맥질환, 안정형 협심증, 심부전, 비대상성 심부전, 심근경색, 심부정맥, 혈관경련, 조절되지 않...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오.어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "199806462",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "니코틴 17.5밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "N07BA01"
+    },
+    "팍스정(덱시부프로펜)": {
+      "name_ko": "팍스정(덱시부프로펜)",
+      "name_en": "Dexibuprofen",
+      "classification": "소염진통제",
+      "category": "NSAID",
+      "indication": "이 약은 만성 다발성관절염, 류마티스관절염, 관절증, 강직척추염, 외상 및 수술 후 통증성 부종 또는 염증 그리고 염증, 통증 및 발열을 수반하는 감염증의 치료보조에 사용합니다.",
+      "common_side_effects": [
+        "드물게 쇽(흉부불쾌감",
+        "오한",
+        "호흡곤란",
+        "혈압저하 등)",
+        "드물게 재생불량성빈혈"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "(주)에이프로젠바이오로직스",
+      "usage": "성인은 1회 1정(300 mg)씩, 1일 2~4회 복용합니다. 단, 1일 4정(1,200 mg)을 초과하지 않습니다.",
+      "precautions": "이 약에 과민증, 위장관궤양 또는 경험자, 위장관이나 뇌혈관 또는 다른 부위의 출혈이 있는 환자, 심한 혈액이상, 심한 간장애, 심한 신장애, 심한 심부전, 심한 고혈압, 기관지 천식 또는 경험자, 아스피린이나 다른 비스테로이드성 소염진통제에 대한 천식, 두드러기 또는 알레르기 반응 경험자, 관상동맥 우회로술(CABG) 전후에 발생하는 통증의 치료, 임신 6개월 이상의 임부, 크론병 또는 궤양성대장염과 같은 염증성장질환 환자, 비스테로이드성 소염진통제 치료로 인해 위장관 출혈 또는 천공 경험자는 이 약을 복용하지 마십시오. 이 약을...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200100323",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1O597tTU9c_",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "덱시부프로펜 300.0밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "M01AE14"
+    },
+    "록소케어카타플라스마(록소프로펜나트륨)": {
+      "name_ko": "록소케어카타플라스마(록소프로펜나트륨)",
+      "name_en": "Loxoprofen Sodium Hydrate",
+      "classification": "해열진통제",
+      "category": "Analgesic",
+      "indication": "이 약은 퇴행성관절염(뼈관절염), 근육통, 외상 후의 종창, 통증의 진통ㆍ소염에 사용합니다.",
+      "common_side_effects": [
+        "접촉피부염",
+        "홍반",
+        "피부발진",
+        "피하출혈",
+        "가려움"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "일양약품(주)",
+      "usage": "1회 1매씩, 1일 1회 질환 부위에 부착합니다.",
+      "precautions": "이 약에 과민증 환자, 아스피린 천식(비스테로이드소염진통제 등에 의한 천식발작의 유발) 또는 경험자는 이 약을 사용하지 마십시오. 눈 및 점막, 손상된 피부 및 점막, 습진 또는 발진 부위, 무좀, 백선 등에 사용하지 마십시오. 이 약을 사용하기 전에 기관지 천식 환자, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 미숙아, 신생아, 영아(젖먹이, 갓난아기), 유아, 소아, 고령자는 의사 또는 약사와 상의하십시오. 정해진 용법과 용량을 잘 지키십시오. 밀봉붕대법을 사용하지 마십시오. 1주일 정도 사용하여도 증상의 개선이 ...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200709834",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "록소프로펜나트륨수화물 113.4밀리그램",
+        "록소프로펜나트륨수화물 77.76밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "M02AA"
+    },
+    "게보린에스정(수출용)": {
+      "name_ko": "게보린에스정(수출용)",
+      "name_en": "Acetaminophen/Anhydrous Caffeine/Ascorbic Acid Coated",
+      "classification": "해열진통제",
+      "category": "Analgesic",
+      "indication": "이 약은 두통, 치통, 발치후 동통(통증), 인후(목구멍)통, 귀의 통증, 관절통, 신경통, 요통, 근육통, 견통(어깨결림), 타박통, 골절통, 염좌통(삠통증), 월경통(생리통), 외상통의 진통, 오한(춥고 떨리는 증상), 발열시의 해열에 사용합니다.",
+      "common_side_effects": [
+        "발진·발적(충혈되어 붉어짐)",
+        "가려움",
+        "구역·구토",
+        "식욕부진",
+        "변비"
+      ],
+      "interaction_risk": "high",
+      "manufacturer": "삼진제약(주)",
+      "usage": "만 11세 이상 및 성인은 1회 1캡슐씩 1일 1~3회 공복(빈 속)시를 피하여 복용합니다. 복용간격은 4시간 이상으로 합니다.",
+      "precautions": "이 약에 과민증 환자, 이 약 또는 다른 해열진통제, 감기약에 천식 경험자, 만 3개월 미만의 영아(갓난아기)는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 수두 또는 인플루엔자에 감염되어 있거나 또는 의심되는 영아(갓난아기) 및 만 15세 미만의 어린이, 알레르기 체질, 알레르기 반응(발열, 발진, 관절통, 천식, 가려움증 등) 경험자, 간장질환, 신장(콩팥)질환, 갑상선질환, 당뇨병, 고혈압 등이 있는 사람, 몸이 약한 사람 또는 고열이 있는 사람, 고령자(노인), 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부,...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "201111097",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1OcIzQG1ql0",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "아세트아미노펜 320.00밀리그램",
+        "카페인무수물 50.00밀리그램",
+        "제피아스코르브산 51.55밀리그램"
+      ],
+      "otc_code": "일반의약품",
+      "atc_code": "N02BE51"
+    },
+    "알레그라디정": {
+      "name_ko": "알레그라디정",
+      "name_en": "Fexofenadine Hydrochloride/Pseudoephedrine Hydrochloride",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 알레르기비염 증상 완화에 사용합니다.",
+      "common_side_effects": [
+        "쇽 증상(호흡곤란",
+        "혈압저하",
+        "혈관부종",
+        "가슴통증",
+        "홍조 등)"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "(주)한독",
+      "usage": "성인 및 12세 이상 청소년은 1일 1회 120 mg을 식사전 물과 함께 복용합니다. 신부전 환자는 시작용량으로서 1일 1회 60 mg을 식사전 물과 함께 복용합니다.",
+      "precautions": "이 약에 과민증 환자는 이 약을 복용하지 마십시오. 이 약을 복용하기 전에 신부전 환자, 고령자, 심혈관질환 환자 또는 경험자, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 저체중신생아, 신생아, 12세 미만의 소아는 의사 또는 약사와 상의하십시오.",
+      "storage": "실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "200001308",
+      "image_url": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/1OlTcytjZI_",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "펙소페나딘염산염 60.0밀리그램",
+        "슈도에페드린염산염 120.0밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "R01BA52"
+    },
+    "메디소루주(메틸프레드니솔론숙시네이트나트륨)": {
+      "name_ko": "메디소루주(메틸프레드니솔론숙시네이트나트륨)",
+      "name_en": "Methylprednisolone Sodium Succinate",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "이 약은 습진, 피부염군(진행성 지장각피증, 만성단순태선 포함), 양진(가려움발진)군(구진두드러기 포함), 벌레물린데, 건선, 손바닥 및 발바닥 농포증에 사용합니다.",
+      "common_side_effects": [
+        "전염성 농가진",
+        "모낭염",
+        "칸디다증",
+        "백선",
+        "부스럼"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "한올바이오파마(주)",
+      "usage": "1일 수회 적당량을 환부에 바르고 증상에 따라 적절히 증감합니다.",
+      "precautions": "이 약에 과민증 환자, 피부감염증(결핵, 매독, 칸디다증, 백선, 대상포진, 단순포진, 수두, 종두증, 옴, 사면발이), 고막 천공이 있는 습진성 외이도염, 궤양(베체트병 제외), 제2도 심재성 이상의 화상 및 동상, 입주위피부염, 보통여드름, 주사 환자는 이 약을 사용하지 마십시오.이 약을 사용하기 전에 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 유ㆍ소아, 고령자는 의사 또는 약사와 상의하십시오.안과용으로 사용하지 마십시오.화장이나 면도 후 치료 이외의 목적으로 사용하지 마십시오.의사의 감독 없이 밀봉붕대법을 사용하...",
+      "storage": "실온에서 보관하십시오.어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "198500227",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "메틸프레드니솔론숙시네이트나트륨 166밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "H02AB04"
+    },
+    "록스펜정(록소프로펜나트륨)": {
+      "name_ko": "록스펜정(록소프로펜나트륨)",
+      "name_en": "Loxoprofen Sodium Hydrate",
+      "classification": "소염진통제",
+      "category": "NSAID",
+      "indication": "이 약은 퇴행성관절염(뼈관절염), 근육통, 외상 후의 종창, 통증의 진통ㆍ소염에 사용합니다.",
+      "common_side_effects": [
+        "가려움",
+        "홍반",
+        "접촉피부염",
+        "피부발진",
+        "피하출혈"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "신풍제약(주)",
+      "usage": "1회 1매씩, 1일 1회 질환 부위에 부착합니다.",
+      "precautions": "이 약에 과민증 환자, 아스피린 천식(비스테로이드소염진통제 등에 의한 천식발작의 유발) 또는 경험자는 이 약을 사용하지 마십시오. 눈 및 점막, 손상된 피부 및 점막, 습진 또는 발진 부위, 무좀, 백선 등에 사용하지 마십시오. 이 약을 사용하기 전에 기관지 천식 환자, 임부 또는 임신하고 있을 가능성이 있는 여성 및 수유부, 미숙아, 신생아, 영아(젖먹이, 갓난아기), 유아, 소아, 고령자는 의사 또는 약사와 상의하십시오. 정해진 용법과 용량을 잘 지키십시오. 밀봉붕대법을 사용하지 마십시오. 1주일 정도 사용하여도 증상의 개선이 ...",
+      "storage": "습기와 빛을 피해 실온에서 보관하십시오. 어린이의 손이 닿지 않는 곳에 보관하십시오.",
+      "item_seq": "199700059",
+      "image_url": "",
+      "api_source": "e약은요+허가정보",
+      "ingredients": [
+        "록소프로펜나트륨수화물 68.1밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "M01AE19"
+    },
+    "씨잘액(레보세티리진염산염)": {
+      "name_ko": "씨잘액(레보세티리진염산염)",
+      "name_en": "Levocetirizine Hydrochloride",
+      "classification": "항히스타민제",
+      "category": "Antihistamine",
+      "indication": "",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "한국유씨비제약(주)",
+      "usage": "구분 eGFR (mL/min) 용량 및 빈도 신기능 정상 ≥ 90 1회 5mg, 1일 1회 경증 신기능 저하 60 - 1회 5mg, 1일 1회 중등도 신기능 저하 30 - 1회 5mg, 2일 1회 중증 신기능 저하 15 - 1회 5mg, 3일 1회 말기 신질환 금기 ]]>",
+      "precautions": "",
+      "storage": "차광기밀용기, 실온(1~30℃)보관",
+      "item_seq": "200607549",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "레보세티리진염산염 50밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "R06AE09"
+    },
+    "아모디핀정": {
+      "name_ko": "아모디핀정5밀리그램(암로디핀캄실산염)",
+      "name_en": "Amlodipine Camsylate",
+      "classification": "혈압강하제",
+      "category": "Antihypertensive",
+      "indication": "",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "한미약품(주)",
+      "usage": "]]> ]]>",
+      "precautions": "2기준으로 임상 최대 권장용량인 10 mg에 근접한 용량, 랫드에서는 임상 최대 권장용량의 2배*).]]> 2기준으로 임상 최대 권장용량인 10 mg의 8배*)으로 처치한 랫드 (교미 전에 수컷은 64일 동안, 암컷은 14일 동안 처치)에서 수태능에 대한 영향은 나타나지 않았다.]]> max가 생물학적으로 동등하였다.]]>",
+      "storage": "차광기밀용기,실온(1~30℃)보관",
+      "item_seq": "200402637",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "암로디핀캄실산염 7.841밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "C08CA01"
+    },
+    "글루코닐정(메트포르민염산염)": {
+      "name_ko": "글루코닐정(메트포르민염산염)",
+      "name_en": "Metformin Hydrochloride",
+      "classification": "당뇨병약",
+      "category": "Antidiabetic",
+      "indication": "",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "medium",
+      "manufacturer": "(주)셀트리온제약",
+      "usage": "",
+      "precautions": "2), 탈수, 심각한 감염,심혈관계 허탈(쇽), 급성 심근경색, 패혈증과 같은 신기능에 영향을 줄 수 있는 급성 상태]]> 60ml/min/1.73m2인 경우는 적어도 검사 시점 또는 사전에 이 약의 투여를 중단해야 하고, 48시간 이내에는 재투여가 불가능하다. 신기능 재평가 후 추가 손상 위험이 없을 것으로 판명된 이후에만 치료를 재개한다. 중등도 신장애 환자의 경우(사구체여과율 45~ 60ml/min/1.73m2), 이 약은 요오드화 조영제 투여 48시간 전 반드시 중단되어야 하며 48시간 이내에는 재투여가 불가능하다. 신기능 ...",
+      "storage": "밀폐용기, 실온보관(1~30도)",
+      "item_seq": "198500241",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "메트포르민염산염 500.0밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "A10BA02"
+    },
+    "키목신캡슐": {
+      "name_ko": "키목신캡슐250밀리그램(아목시실린수화물)",
+      "name_en": "Amoxicillin Hydrate",
+      "classification": "항생제",
+      "category": "Antibiotic",
+      "indication": "",
+      "common_side_effects": [
+        "정보 없음"
+      ],
+      "interaction_risk": "low",
+      "manufacturer": "(주)유한양행",
+      "usage": "",
+      "precautions": "",
+      "storage": "기밀용기",
+      "item_seq": "197500135",
+      "image_url": "",
+      "api_source": "허가정보",
+      "ingredients": [
+        "아목시실린수화물 250밀리그램",
+        "아목시실린수화물 250밀리그램",
+        "아목시실린수화물 250밀리그램",
+        "아목시실린수화물 250밀리그램",
+        "아목시실린수화물 250밀리그램",
+        "아목시실린수화물 250밀리그램"
+      ],
+      "otc_code": "전문의약품",
+      "atc_code": "J01CA04"
     }
   },
   "aliases": {
@@ -117,15 +1019,84 @@
     "타이레놀정": "타이레놀",
     "감기": "감기약",
     "진통제": "아세로낙정",
-    "소화제": "넥세라정"
+    "소화제": "넥세라정",
+    "아세트아미노펜": "타이레놀",
+    "아세타미노펜": "타이레놀"
   },
   "categories": {
-    "NSAID": ["아세로낙정"],
-    "PPI": ["넥세라정"],
-    "MuscleRelaxant": ["휴티렌투엑스정"],
-    "Antifungal": ["이트라펜세미정"],
-    "ColdMedicine": ["에페신정", "감기약"],
-    "Analgesic": ["타이레놀"],
-    "Food": ["무", "생강", "대추"]
+    "NSAID": [
+      "아세로낙정",
+      "어린이부루펜시럽(이부프로펜)",
+      "팍스정(덱시부프로펜)",
+      "록스펜정(록소프로펜나트륨)"
+    ],
+    "PPI": [
+      "넥세라정",
+      "겔포스엠현탁액",
+      "개비스콘페퍼민트현탁액"
+    ],
+    "MuscleRelaxant": [
+      "휴티렌투엑스정"
+    ],
+    "Antifungal": [
+      "이트라펜세미정"
+    ],
+    "ColdMedicine": [
+      "에페신정",
+      "감기약"
+    ],
+    "Analgesic": [
+      "타이레놀",
+      "게보린소프트연질캡슐",
+      "펜잘큐정",
+      "록소케어카타플라스마(록소프로펜나트륨)",
+      "게보린에스정(수출용)"
+    ],
+    "Food": [
+      "무",
+      "생강",
+      "대추"
+    ],
+    "Cold Medicine": [
+      "어린이부루펜시럽(이부프로펜)",
+      "판콜에이내복액",
+      "에페신정"
+    ],
+    "Digestive": [
+      "베아제정",
+      "훼스탈골드정",
+      "까스활명수큐액"
+    ],
+    "Antihistamine": [
+      "지르텍정(세티리진염산염)",
+      "알레그라정120밀리그람(펙소페나딘염산염)",
+      "클라리틴정(로라타딘)",
+      "콘택골드캡슐",
+      "보송크림(프레드니솔론발레로아세테이트)",
+      "알레그라디정",
+      "메디소루주(메틸프레드니솔론숙시네이트나트륨)",
+      "씨잘액(레보세티리진염산염)"
+    ],
+    "Hepatoprotective": [
+      "대웅우루사연질캡슐"
+    ],
+    "Other": [
+      "스트렙실허니앤레몬트로키(플루르비프로펜), 스트렙실오렌지트로키(플루르비프로펜)",
+      "둘코락스에스장용정",
+      "니코틴엘TTS10(니코틴)"
+    ],
+    "Antibiotic": [
+      "팍스정(덱시부프로펜)",
+      "키목신캡슐"
+    ],
+    "Muscle Relaxant": [
+      "휴티렌투엑스정"
+    ],
+    "Antihypertensive": [
+      "아모디핀정"
+    ],
+    "Antidiabetic": [
+      "글루코닐정(메트포르민염산염)"
+    ]
   }
 }

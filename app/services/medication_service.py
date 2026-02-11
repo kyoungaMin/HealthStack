@@ -6,12 +6,13 @@ from app.services.pubmed_service import PubMedService
 from app.utils.cache_manager import CacheManager
 
 try:
-    import google.generativeai as genai
-    # Configure GenAI
-    genai.configure(api_key=os.getenv("API_KEY"))
+    from google import genai
+    # Ensure API Key is available
+    if not os.getenv("API_KEY"):
+        print("Warning: API_KEY not set for google-genai")
 except ImportError:
     genai = None
-    print("Warning: google-generative-ai module not found. RAG features will be disabled.")
+    print("Warning: google-genai module not found. RAG features will be disabled.")
 except Exception as e:
     genai = None
     print(f"Warning: Failed to configure GenAI: {e}")
@@ -36,8 +37,8 @@ class MedicationService:
             with open(self.db_path, "w", encoding="utf-8") as f:
                 json.dump([], f)
 
-    def save_prescription(self, image_path, drugs, hospital_name=None, user_id=None):
-        """처방전 DB 저장 (JSON 기반 간이 DB) - 약물 정보가 없어도 저장"""
+    def save_prescription(self, image_path, drugs, hospital_name=None, user_id=None, drug_info_dict=None):
+        """처방전 DB 저장 (JSON 기반 간이 DB) - 약물 영문명도 함께 저장"""
         try:
             # Read existing
             data = []
@@ -57,8 +58,37 @@ class MedicationService:
             # Copy file
             shutil.copy2(image_path, os.path.join(self.upload_dir, filename))
             
-            # ★ 개선: drugs가 비어있으면 기본값 설정
-            drug_list = drugs if drugs else ["약물 미식별"]
+            # ★ 개선: 약물 정보를 구조화된 형태로 저장 (한글명 + 영문명)
+            drug_list = []
+            if drugs:
+                for drug_name in drugs:
+                    if drug_info_dict and drug_name in drug_info_dict:
+                        # 약물 정보가 있으면 한글명, 영문명, 유형을 모두 저장
+                        drug_info = drug_info_dict[drug_name]
+                        drug_list.append({
+                            "korean_name": drug_name,
+                            "scientific_name": drug_info.get('scientific_name', drug_name),
+                            "english_name": drug_info.get('english_name', drug_info.get('scientific_name', drug_name)),
+                            "type": drug_info.get('type', 'Unknown'),
+                            "indication": drug_info.get('indication', '')
+                        })
+                    else:
+                        # 정보가 없으면 약물명만 저장
+                        drug_list.append({
+                            "korean_name": drug_name,
+                            "scientific_name": drug_name,
+                            "english_name": drug_name,
+                            "type": "Unknown",
+                            "indication": ""
+                        })
+            else:
+                drug_list = [{
+                    "korean_name": "약물 미식별",
+                    "scientific_name": "Unknown",
+                    "english_name": "Unknown",
+                    "type": "Unknown",
+                    "indication": ""
+                }]
             
             entry = {
                 "id": entry_id,
@@ -66,7 +96,7 @@ class MedicationService:
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "image_path": saved_path,
                 "hospital_name": hospital_name or "병원명 미상",
-                "drugs": drug_list
+                "drugs": drug_list  # 구조화된 약물 정보
             }
             data.append(entry)
             
@@ -120,9 +150,9 @@ class MedicationService:
         # 2. Gemini Generation (Generator)
         try:
             if not genai:
-                raise ImportError("Google Generative AI module is not available.")
+                raise ImportError("Google GenAI module is not available.")
                 
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            client = genai.Client(api_key=os.getenv("API_KEY"))
             prompt = f"""
             Role: 약사
             Target: 환자
@@ -144,7 +174,10 @@ class MedicationService:
             """
             
             # 비동기 호출
-            response = await model.generate_content_async(prompt)
+            response = await client.aio.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt
+            )
             info_text = response.text
             
             result = {

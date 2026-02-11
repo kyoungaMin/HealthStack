@@ -44,14 +44,13 @@ class PubMedService:
         # Configure GenAI for translation
         if self.genai_key:
             try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.genai_key)
-                self.model = genai.GenerativeModel('gemini-2.0-flash')
+                from google import genai
+                self.client = genai.Client(api_key=self.genai_key)
             except Exception as e:
                 print(f"GenAI Init Failed: {e}")
-                self.model = None
+                self.client = None
         else:
-            self.model = None
+            self.client = None
 
     async def translate_to_english(self, keyword_ko: str) -> str:
         """한글 의학/식재료 키워드를 영문(MeSH Term)으로 변환"""
@@ -78,7 +77,7 @@ class PubMedService:
                 print(f"Google Translate API Failed: {e}")
 
         # 1. Try Gemini if available
-        if self.model:
+        if self.client:
             try:
                 prompt = f"""
                 Translate the following Korean medical/food term into its most appropriate English scientific or MeSH term for PubMed search.
@@ -87,7 +86,10 @@ class PubMedService:
                 Korean: {keyword_ko}
                 English:
                 """
-                response = await self.model.generate_content_async(prompt)
+                response = await self.client.aio.models.generate_content(
+                    model='gemini-2.0-flash',
+                    contents=prompt
+                )
                 return response.text.strip()
             except Exception as e:
                 print(f"Gemini Translation error: {e}")

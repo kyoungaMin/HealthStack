@@ -40,5 +40,235 @@
     "drugs": [
       "약물 미식별"
     ]
+  },
+  {
+    "id": "1770633489",
+    "user_id": "temp_user_sample_001",
+    "date": "2026-02-09 19:38:09",
+    "image_path": "data/uploads/1770633489.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633699",
+    "user_id": "user_htn_02",
+    "date": "2026-02-09 19:41:39",
+    "image_path": "data/uploads/1770633699.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633703",
+    "user_id": "user_cold_01",
+    "date": "2026-02-09 19:41:43",
+    "image_path": "data/uploads/1770633703.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633757",
+    "user_id": "user_dm_03",
+    "date": "2026-02-09 19:42:37",
+    "image_path": "data/uploads/1770633757.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633763",
+    "user_id": "user_sleep_04",
+    "date": "2026-02-09 19:42:43",
+    "image_path": "data/uploads/1770633763.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633813",
+    "user_id": "user_gerd_05",
+    "date": "2026-02-09 19:43:33",
+    "image_path": "data/uploads/1770633813.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633833",
+    "user_id": "user_pain_06",
+    "date": "2026-02-09 19:43:53",
+    "image_path": "data/uploads/1770633833.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633875",
+    "user_id": "user_allergy_07",
+    "date": "2026-02-09 19:44:35",
+    "image_path": "data/uploads/1770633875.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633878",
+    "user_id": "user_anxiety_08",
+    "date": "2026-02-09 19:44:38",
+    "image_path": "data/uploads/1770633878.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633940",
+    "user_id": "user_skin_09",
+    "date": "2026-02-09 19:45:40",
+    "image_path": "data/uploads/1770633940.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770633943",
+    "user_id": "user_fatigue_10",
+    "date": "2026-02-09 19:45:43",
+    "image_path": "data/uploads/1770633943.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634243",
+    "user_id": "user_cold_01",
+    "date": "2026-02-09 19:50:43",
+    "image_path": "data/uploads/1770634243.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634298",
+    "user_id": "user_htn_02",
+    "date": "2026-02-09 19:51:38",
+    "image_path": "data/uploads/1770634298.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634348",
+    "user_id": "user_dm_03",
+    "date": "2026-02-09 19:52:28",
+    "image_path": "data/uploads/1770634348.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634385",
+    "user_id": "user_sleep_04",
+    "date": "2026-02-09 19:53:05",
+    "image_path": "data/uploads/1770634385.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634433",
+    "user_id": "user_gerd_05",
+    "date": "2026-02-09 19:53:53",
+    "image_path": "data/uploads/1770634433.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634491",
+    "user_id": "user_pain_06",
+    "date": "2026-02-09 19:54:51",
+    "image_path": "data/uploads/1770634491.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634546",
+    "user_id": "user_allergy_07",
+    "date": "2026-02-09 19:55:46",
+    "image_path": "data/uploads/1770634546.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634585",
+    "user_id": "user_anxiety_08",
+    "date": "2026-02-09 19:56:25",
+    "image_path": "data/uploads/1770634585.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634623",
+    "user_id": "user_skin_09",
+    "date": "2026-02-09 19:57:03",
+    "image_path": "data/uploads/1770634623.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770634662",
+    "user_id": "user_fatigue_10",
+    "date": "2026-02-09 19:57:42",
+    "image_path": "data/uploads/1770634662.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770644591",
+    "user_id": "guest_n8b3zbuzy",
+    "date": "2026-02-09 22:43:11",
+    "image_path": "data/uploads/1770644591.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
+  },
+  {
+    "id": "1770644767",
+    "user_id": "guest_n8b3zbuzy",
+    "date": "2026-02-09 22:46:07",
+    "image_path": "data/uploads/1770644767.jpg",
+    "hospital_name": "병원명 미상",
+    "drugs": [
+      "약물 미식별"
+    ]
   }
 ]

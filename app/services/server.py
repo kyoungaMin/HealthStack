@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 import tempfile
+import json
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
@@ -20,12 +22,47 @@ from app.services.pubmed_service import search_pubmed_papers
 from app.services.youtube_service import search_youtube_videos
 from app.services.naver_ocr_service import NaverOCRService
 from app.services.faq_service import FAQService
+from app.utils.drug_info_loader import get_drugs_info_list
+from app.utils.cache_manager import CacheManager
 
 app = FastAPI(
     title="Health Stack API",
     description="증상/처방전 기반 동의보감 식재료 추천 서비스",
     version="1.0.0"
 )
+
+# ★ Pre-computed 캐시 로딩 함수
+def load_precomputed_cache():
+    """서버 시작 시 pre-computed 캐시 데이터 로드"""
+    cache_metadata_path = Path("data/cache/precomputed_metadata.json")
+    
+    if cache_metadata_path.exists():
+        try:
+            with open(cache_metadata_path, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+            
+            cached_count = len(metadata.get("cached_diseases", []))
+            if cached_count > 0:
+                print("\n" + "="*70)
+                print(f"✅ Pre-computed 캐시 로드 완료!")
+                print(f"   캐시된 질환: {cached_count}개")
+                for disease in metadata.get("cached_diseases", [])[:3]:
+                    print(f"   • {disease['description']}")
+                if cached_count > 3:
+                    print(f"   ... 외 {cached_count - 3}개")
+                print("="*70 + "\n")
+        except Exception as e:
+            print(f"⚠️ Pre-computed 캐시 로드 실패: {e}")
+    else:
+        print("\n⚠️ Pre-computed 캐시 파일이 없습니다.")
+        print("   스크립트 실행: python scripts/generate_precomputed_cache.py\n")
+
+
+# 앱 시작 시 캐시 로드
+@app.on_event("startup")
+async def startup_event():
+    """서버 시작 시 실행"""
+    load_precomputed_cache()
 
 # Static Files Mount (이미지 서빙)
 if not os.path.exists("data/uploads"):
@@ -297,7 +334,17 @@ async def analyze_with_image(
                 }
                 for rec in result.recipes
             ],
-            "medications": result.medications,
+            "medications": [
+                {
+                    "name_ko": med.get("name_ko", med.get("name", "")),
+                    "name_en": med.get("name_en", ""),
+                    "classification": med.get("classification", ""),
+                    "indication": med.get("indication", "주요 효능 정보 없음"),
+                    "common_side_effects": med.get("common_side_effects", []),
+                    "interaction_risk": med.get("interaction_risk", "unknown")
+                }
+                for med in get_drugs_info_list(all_medications)
+            ],
             "cautions": result.cautions,
             "matched_symptom_name": result.matched_symptom_name,
             "disclaimer": result.disclaimer
@@ -344,6 +391,36 @@ async def get_golden_questions():
 async def health_check():
     """서버 상태 확인"""
     return {"status": "healthy", "version": "1.0.0"}
+
+
+@app.get("/api/cache-status")
+async def get_cache_status():
+    """Pre-computed 캐시 상태 조회"""
+    cache_metadata_path = Path("data/cache/precomputed_metadata.json")
+    
+    if cache_metadata_path.exists():
+        try:
+            with open(cache_metadata_path, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+            
+            return {
+                "precomputed_cache_enabled": True,
+                "generated_at": metadata.get("generated_at"),
+                "total_diseases": metadata.get("total_diseases", 0),
+                "cached_diseases": len(metadata.get("cached_diseases", [])),
+                "failed_diseases": len(metadata.get("failed_diseases", [])),
+                "diseases": metadata.get("cached_diseases", [])[:5]  # 처음 5개만
+            }
+        except Exception as e:
+            return {
+                "precomputed_cache_enabled": False,
+                "error": str(e)
+            }
+    else:
+        return {
+            "precomputed_cache_enabled": False,
+            "message": "Pre-computed 캐시 데이터가 없습니다"
+        }
 
 @app.get("/api/prescriptions")
 async def get_prescriptions(user_id: Optional[str] = None):

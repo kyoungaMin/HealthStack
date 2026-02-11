@@ -1,0 +1,103 @@
+{
+  "description": "자주 조회되는 질환 목록 (Pre-computed 캐시용)",
+  "version": "1.0.0",
+  "total_diseases": 10,
+  "diseases": [
+    {
+      "id": "cold",
+      "name": "감기",
+      "korean_name": "감기",
+      "english_name": "Cold",
+      "priority": 1,
+      "description": "바이러스성 감기로 인한 콧물, 기침, 두통 등의 증상",
+      "estimated_frequency": "매우 높음"
+    },
+    {
+      "id": "hypertension",
+      "name": "고혈압",
+      "korean_name": "고혈압",
+      "english_name": "Hypertension",
+      "priority": 1,
+      "description": "혈압 상승으로 인한 어지러움, 두통 등의 증상",
+      "estimated_frequency": "높음"
+    },
+    {
+      "id": "diabetes",
+      "name": "당뇨",
+      "korean_name": "당뇨",
+      "english_name": "Diabetes",
+      "priority": 1,
+      "description": "혈당 상승으로 인한 갈증, 피로 등의 증상",
+      "estimated_frequency": "높음"
+    },
+    {
+      "id": "insomnia",
+      "name": "불면증",
+      "korean_name": "불면증",
+      "english_name": "Insomnia",
+      "priority": 1,
+      "description": "수면 장애로 인한 밤새 깨어있음",
+      "estimated_frequency": "매우 높음"
+    },
+    {
+      "id": "indigestion",
+      "name": "소화불량",
+      "korean_name": "소화불량",
+      "english_name": "Indigestion",
+      "priority": 2,
+      "description": "음식 소화 곤란으로 인한 명치 답답함, 더부룩함",
+      "estimated_frequency": "높음"
+    },
+    {
+      "id": "muscle_pain",
+      "name": "근육통",
+      "korean_name": "근육통",
+      "english_name": "Muscle Pain",
+      "priority": 2,
+      "description": "어깨, 허리 등의 근육 통증",
+      "estimated_frequency": "높음"
+    },
+    {
+      "id": "allergy",
+      "name": "알러지",
+      "korean_name": "알러지",
+      "english_name": "Allergy",
+      "priority": 2,
+      "description": "환절기 알러지로 인한 재채기, 가려움증",
+      "estimated_frequency": "높음"
+    },
+    {
+      "id": "anxiety",
+      "name": "불안장애",
+      "korean_name": "불안장애",
+      "english_name": "Anxiety Disorder",
+      "priority": 2,
+      "description": "가슴 두근거림, 불안감으로 인한 불편함",
+      "estimated_frequency": "중간"
+    },
+    {
+      "id": "dermatitis",
+      "name": "피부염",
+      "korean_name": "피부염",
+      "english_name": "Dermatitis",
+      "priority": 2,
+      "description": "피부 가려움증, 발진으로 인한 불편함",
+      "estimated_frequency": "중간"
+    },
+    {
+      "id": "chronic_fatigue",
+      "name": "만성피로",
+      "korean_name": "만성피로",
+      "english_name": "Chronic Fatigue",
+      "priority": 2,
+      "description": "계속되는 피로감, 무기력함",
+      "estimated_frequency": "높음"
+    }
+  ],
+  "notes": [
+    "이 목록은 TEST_REPORT_v1.md의 테스트 케이스를 기반으로 생성되었습니다",
+    "Priority 1 (매우 자주 조회): 감기, 고혈압, 당뇨, 불면증",
+    "Priority 2 (자주 조회): 나머지 6가지 질환",
+    "향후 실제 사용자 데이터를 기반으로 업데이트 가능"
+  ]
+}

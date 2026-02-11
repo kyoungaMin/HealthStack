@@ -1,0 +1,102 @@
+[
+    {
+        "id": "case_001_cold",
+        "user_id": "user_cold_01",
+        "symptom": "콧물이 계속 나고 머리가 지끈거려요. 열도 조금 있는 것 같습니다.",
+        "medications": [
+            "Tylenol ER",
+            "Sudafed",
+            "Mucosolvan"
+        ]
+    },
+    {
+        "id": "case_002_hypertension",
+        "user_id": "user_htn_02",
+        "symptom": "혈압이 좀 높다고 해서 약을 받아왔는데, 뒷목이 뻐근하고 가끔 어지러워요.",
+        "medications": [
+            "Amlodipine",
+            "Valsartan",
+            "Aspirin Protect"
+        ]
+    },
+    {
+        "id": "case_003_diabetes",
+        "user_id": "user_dm_03",
+        "symptom": "요즘 갈증이 너무 심해서 물을 많이 마시고, 화장실도 자주 가요. 체중도 좀 줄은 것 같고요.",
+        "medications": [
+            "Metformin",
+            "Diamicron",
+            "Januvia"
+        ]
+    },
+    {
+        "id": "case_004_insomnia",
+        "user_id": "user_sleep_04",
+        "symptom": "밤에 잠이 잘 안 오고 자정이 넘어서야 겨우 잠듭니다. 중간에 자꾸 깨서 너무 피곤해요.",
+        "medications": [
+            "Stilnox",
+            "Circadin"
+        ]
+    },
+    {
+        "id": "case_005_digestive",
+        "user_id": "user_gerd_05",
+        "symptom": "밥만 먹으면 속이 더부룩하고 명치 끝이 답답해요. 가끔 신물이 넘어옵니다.",
+        "medications": [
+            "Nexium",
+            "Almagel",
+            "Gasmotin",
+            "Bearse"
+        ]
+    },
+    {
+        "id": "case_006_pain",
+        "user_id": "user_pain_06",
+        "symptom": "주말에 무리해서 운동을 했더니 어깨랑 허리가 너무 쑤시고 아파요.",
+        "medications": [
+            "Naxen",
+            "Somalgen",
+            "Mydocalm"
+        ]
+    },
+    {
+        "id": "case_007_allergy",
+        "user_id": "user_allergy_07",
+        "symptom": "환절기라 그런지 재채기가 멈추질 않고 눈도 가려워요. 맑은 콧물도 흐릅니다.",
+        "medications": [
+            "Zyrtec",
+            "Allegra",
+            "Avamys Spray"
+        ]
+    },
+    {
+        "id": "case_008_anxiety",
+        "user_id": "user_anxiety_08",
+        "symptom": "가슴이 두근거리고 이유 없이 불안한 느낌이 들어요. 손이 떨리기도 합니다.",
+        "medications": [
+            "Indenol",
+            "Xanax",
+            "Lexapro"
+        ]
+    },
+    {
+        "id": "case_009_skin",
+        "user_id": "user_skin_09",
+        "symptom": "피부가 너무 가렵고 붉은 반점이 생겼어요. 긁으면 더 심해지는 것 같아요.",
+        "medications": [
+            "Dermovate Ointment",
+            "Zyrtec",
+            "Prednisolone"
+        ]
+    },
+    {
+        "id": "case_010_fatigue",
+        "user_id": "user_fatigue_10",
+        "symptom": "자도 자도 피곤하고 몸이 물 먹은 솜처럼 무거워요. 입맛도 통 없네요.",
+        "medications": [
+            "Ursa",
+            "Aronamin Gold",
+            "Godex"
+        ]
+    }
+]

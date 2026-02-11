@@ -6,7 +6,7 @@ import os
 import json
 import hashlib
 from datetime import datetime, timedelta
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
 
 
 class CacheManager:
@@ -32,6 +32,30 @@ class CacheManager:
     def _hash_key(self, key: str) -> str:
         """캐시 키를 해시로 변환 (긴 키 대응)"""
         return hashlib.md5(key.encode()).hexdigest()
+    
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """
+        두 텍스트의 유사도 계산 (Jaccard 지수 기반)
+        
+        Args:
+            text1: 비교 텍스트 1
+            text2: 비교 텍스트 2
+            
+        Returns:
+            유사도 (0.0~1.0)
+        """
+        # 단어 분리 및 정규화
+        words1 = set(text1.lower().split())
+        words2 = set(text2.lower().split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        # Jaccard 지수: |A ∩ B| / |A ∪ B|
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+        
+        return intersection / union if union > 0 else 0.0
     
     def get(
         self,
@@ -78,6 +102,83 @@ class CacheManager:
         except Exception as e:
             print(f"[Cache] Error reading cache: {e}")
             return None
+    
+    def get_with_similarity(
+        self,
+        namespace: str,
+        key: str,
+        threshold: float = 0.85,
+        ttl_hours: int = 24
+    ) -> Optional[Any]:
+        """
+        ★ 신규: 유사도 기반 캐시 조회
+        정확한 키가 없어도 유사한 질문/증상에 대한 캐시를 반환
+        
+        Args:
+            namespace: 캐시 네임스페이스
+            key: 조회 키
+            threshold: 유사도 임계값 (0.0~1.0, 기본 0.85)
+            ttl_hours: Time-To-Live (시간)
+            
+        Returns:
+            캐시된 데이터 또는 None (유사도 > threshold)
+        """
+        best_match = None
+        best_similarity = 0.0
+        
+        try:
+            for filename in os.listdir(self.cache_dir):
+                # 같은 네임스페이스만 확인
+                if not filename.startswith(f"{namespace}_"):
+                    continue
+                
+                filepath = os.path.join(self.cache_dir, filename)
+                
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        cache_data = json.load(f)
+                    
+                    # TTL 확인
+                    created_at = datetime.fromisoformat(cache_data.get('created_at', ''))
+                    if datetime.now() - created_at > timedelta(hours=ttl_hours):
+                        continue
+                    
+                    # 유사도 계산
+                    cached_key = cache_data.get('key', '')
+                    similarity = self._calculate_similarity(key, cached_key)
+                    
+                    if similarity > best_similarity:
+                        best_similarity = similarity
+                        best_match = (filepath, cache_data)
+                
+                except Exception as e:
+                    print(f"[Cache] Error reading {filename}: {e}")
+                    continue
+        
+        except Exception as e:
+            print(f"[Cache] Error iterating cache: {e}")
+            return None
+        
+        # 임계값 이상인 경우만 반환
+        if best_similarity >= threshold and best_match:
+            filepath, cache_data = best_match
+            
+            # 캐시 히트 통계 업데이트
+            try:
+                cache_data['hit_count'] = cache_data.get('hit_count', 0) + 1
+                cache_data['last_accessed'] = datetime.now().isoformat()
+                cache_data['similarity'] = round(best_similarity, 4)
+                
+                with open(filepath, 'w', encoding='utf-8') as f:
+                    json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                
+                print(f"[Cache] Similarity hit! Similarity: {best_similarity:.2%} (cached key: {cache_data.get('key')})")
+            except Exception as e:
+                print(f"[Cache] Error updating cache stats: {e}")
+            
+            return cache_data.get('data')
+        
+        return None
     
     def set(
         self,

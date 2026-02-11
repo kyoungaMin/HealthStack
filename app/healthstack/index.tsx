@@ -20,7 +20,14 @@ interface BackendResponse {
   confidence_level: 'high' | 'medium' | 'general';
   source: 'database' | 'similarity' | 'ai_generated';
   ingredients: Ingredient[];
-  medications?: { name: string; info: string; papers: { title: string; url: string }[] }[];
+  medications?: { 
+    name_ko: string; 
+    name_en: string; 
+    classification: string;
+    indication: string;
+    common_side_effects: string[];
+    interaction_risk: string;
+  }[];
   cautions: string[];
   matched_symptom_name: string | null;
   disclaimer: string;
@@ -222,7 +229,7 @@ const App = () => {
     formData.append('symptom', userInput);
     formData.append('user_id', userId);
     formData.append('file', file);
-    
+
     // ★ 추가: 현재 입력된 약물 목록을 JSON으로 전달
     const medNames = medications.map(med => med.name);
     formData.append('medications_json', JSON.stringify(medNames));
@@ -456,7 +463,13 @@ const App = () => {
                 <div className="flex gap-3">
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
                   <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      if (!userInput.trim()) {
+                        alert("증상을 먼저 말씀해 주시겠어요? ☺️\n어디가 불편하신지 알면 처방전을 더 꼼꼼히 봐드릴 수 있어요! 💕");
+                        return;
+                      }
+                      fileInputRef.current?.click();
+                    }}
                     className="px-4 bg-emerald-100 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-200 transition-colors flex items-center gap-2"
                   >
                     <span>📷</span> <span className="text-xs">처방전</span>
@@ -590,27 +603,57 @@ const App = () => {
                 {backendResult?.medications && backendResult.medications.length > 0 && (
                   <div className="mt-6 border-t border-slate-100 pt-6">
                     <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <span className="text-lg">💊</span> 처방약 상세 분석 (RAG)
+                      <span className="text-lg">💊</span> 복용 약물 정보
                     </h4>
                     <div className="space-y-4">
                       {backendResult.medications.map((med, idx) => (
-                        <div key={idx} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                          <h5 className="font-bold text-slate-700 mb-2 flex justify-between">
-                            {med.name}
-                            <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">의약품</span>
-                          </h5>
-                          <div className="text-xs text-slate-600 whitespace-pre-line leading-relaxed mb-3">
-                            {med.info}
+                        <div key={idx} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+                          <div className="mb-3">
+                            <h5 className="font-bold text-blue-900 text-sm">
+                              {med.name_ko}
+                              {med.name_en && <span className="text-xs text-blue-600 ml-2">({med.name_en})</span>}
+                            </h5>
+                            <span className="text-[10px] bg-blue-200 text-blue-700 px-2 py-0.5 rounded-full inline-block mt-1">
+                              {med.classification || '의약품'}
+                            </span>
                           </div>
-                          {med.papers.length > 0 && (
-                            <div className="flex flex-col gap-1 mt-2">
-                              {med.papers.map((p, pi) => (
-                                <a key={pi} href={p.url} target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:underline truncate">
-                                  📄 {p.title}
-                                </a>
-                              ))}
-                            </div>
-                          )}
+                          
+                          <div className="text-xs text-slate-700 space-y-2 mb-3">
+                            {med.indication && (
+                              <div>
+                                <span className="font-semibold text-blue-900">주요 효능:</span>
+                                <p className="text-slate-700 ml-2">{med.indication}</p>
+                              </div>
+                            )}
+                            
+                            {med.common_side_effects && med.common_side_effects.length > 0 && (
+                              <div>
+                                <span className="font-semibold text-red-600">⚠️ 주요 부작용:</span>
+                                <ul className="text-slate-700 ml-2 list-disc list-inside">
+                                  {med.common_side_effects.map((effect, i) => (
+                                    <li key={i}>{effect}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {med.interaction_risk && med.interaction_risk !== 'unknown' && (
+                              <div>
+                                <span className="font-semibold text-slate-900">상호작용 위험:</span>
+                                <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
+                                  med.interaction_risk === 'high' ? 'bg-red-100 text-red-700' :
+                                  med.interaction_risk === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                  med.interaction_risk === 'low' ? 'bg-green-100 text-green-700' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {med.interaction_risk === 'high' ? '높음' :
+                                   med.interaction_risk === 'medium' ? '중간' :
+                                   med.interaction_risk === 'low' ? '낮음' :
+                                   '정보 없음'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
