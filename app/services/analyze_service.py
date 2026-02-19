@@ -19,6 +19,16 @@ try:
 except ImportError:
     import google.generativeai as genai
 
+# DUR 서비스는 순환참조 방지를 위해 지연 임포트
+_dur_service = None
+
+def _get_dur_service():
+    global _dur_service
+    if _dur_service is None:
+        from app.services.dur_service import DurService
+        _dur_service = DurService()
+    return _dur_service
+
 
 @dataclass
 class Ingredient:
@@ -54,6 +64,7 @@ class AnalysisResult:
     matched_symptom_id: Optional[int] = None
     matched_symptom_name: Optional[str] = None
     cautions: list[str] = field(default_factory=list)
+    related_questions: list[dict] = field(default_factory=list)
 
 
 class AnalyzeService:
@@ -64,34 +75,64 @@ class AnalyzeService:
         self.cache = CacheManager()  # ★ 캐시 매니저 추가
     
     def _check_interactions(self, drug_names: list[str], ingredients: list[Ingredient]) -> list[str]:
-        """약물-식재료 상호작용 체크"""
+        """
+        약물-식재료 상호작용 체크
+        1차: Supabase interaction_facts 테이블
+        2차: DUR API fallback (DB에 데이터 없을 때)
+        """
         cautions = []
         if not drug_names or not ingredients:
             return []
-            
+
         ing_names = {i.modern_name for i in ingredients}
-        
+        db_hit = False
+
         try:
-            # 약물별로 상호작용 검사
             for drug in drug_names:
                 result = self.db.table("interaction_facts").select("*").or_(
                     f"a_ref.ilike.%{drug}%,"
                     f"b_ref.ilike.%{drug}%"
                 ).execute()
-                
+
                 if not result.data:
                     continue
-                    
+
+                db_hit = True
                 for row in result.data:
-                    # 상대방 식별 (약물이 a면 b, 약물이 b면 a)
                     other = row['b_ref'] if drug in row['a_ref'] else row['a_ref']
-                    
-                    # 식재료 이름이 상대방 텍스트에 포함되는지 확인
                     for ing in ing_names:
-                        if ing in other or other in ing: 
-                             cautions.append(f"⚠️ [약물상호작용] '{drug}' + '{ing}' 주의: {row.get('summary_ko', '')} ({row.get('severity', '주의')})")
+                        if ing in other or other in ing:
+                            cautions.append(
+                                f"⚠️ [약물상호작용] '{drug}' + '{ing}' 주의: "
+                                f"{row.get('summary_ko', '')} ({row.get('severity', '주의')})"
+                            )
         except Exception as e:
-            print(f"Interaction check error: {e}")
+            print(f"Interaction check (DB) error: {e}")
+
+        # 2차: DB에 데이터 없으면 DUR API로 약물-약물 병용금기 확인
+        if not db_hit and len(drug_names) >= 2:
+            try:
+                dur = _get_dur_service()
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 이미 async 컨텍스트면 future 생성
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        future = pool.submit(asyncio.run, dur.check_interactions(drug_names))
+                        dur_results = future.result(timeout=15)
+                else:
+                    dur_results = loop.run_until_complete(dur.check_interactions(drug_names))
+
+                for item in dur_results:
+                    icon = "🚫" if item["severity"] == "CONTRAINDICATED" else "⚠️"
+                    cautions.append(
+                        f"{icon} [DUR 병용금기] '{item['drug_a']}' + '{item['drug_b']}' — "
+                        f"{item['reason'] or '병용 주의'}"
+                    )
+            except Exception as e:
+                print(f"Interaction check (DUR API) error: {e}")
+
         return list(set(cautions))
 
     async def analyze_symptom(self, symptom_text: str, current_meds: list[str] = None) -> AnalysisResult:

@@ -2,8 +2,8 @@
 
 이 문서는 Health Stack 서비스의 API 설계를 정의합니다.
 
-> **소스**: [`schema.integrated.dbml`](./erd/schema.integrated.dbml)  
-> **최종 업데이트**: 2026-02-04
+> **소스**: [`schema.integrated.dbml`](./erd/schema.integrated.dbml)
+> **최종 업데이트**: 2026-02-20
 
 ---
 
@@ -446,7 +446,148 @@ POST /interactions/check
 
 ---
 
-## 6. Symptom → Content (증상 콘텐츠)
+## 6. Symptom & Prescription Analysis (Step-by-Step Pipeline)
+
+### [Step 1] 증상/처방전 초기 인식 (Extraction)
+사용자의 입력을 빠르게 인식하고 키워드를 추출합니다. (1차 필터링)
+
+```http
+POST /analyze/step1-extract
+```
+
+**Request Body (Symptom)**:
+```json
+{
+  "search_type": "symptom",
+  "text": "머리가 지끈거리고 소화가 안돼요"
+}
+```
+
+**Request Body (Prescription)**:
+```json
+{
+  "search_type": "prescription",
+  "image_url": "https://storage.../rx_image.jpg"
+}
+```
+
+**Response**:
+```json
+{
+  "data": {
+    "session_id": "uuid-1234",
+    "detected_keywords": [
+      { "keyword": "두통", "confidence": 0.95 },
+      { "keyword": "소화불량", "confidence": 0.88 },
+      { "keyword": "복부팽만", "confidence": 0.72 }
+    ],
+    "ocr_text": "타이레놀이알서방정..." // (처방전일 경우)
+  }
+}
+```
+
+---
+
+### [Step 2] 검색 및 후보 선택 (Search & Select)
+1단계에서 확인된 키워드를 바탕으로 DB/Vector 검색을 수행하여 후보군을 제공합니다.
+
+```http
+POST /analyze/step2-search
+```
+
+**Request Body**:
+```json
+{
+  "session_id": "uuid-1234",
+  "confirmed_keywords": ["두통", "소화불량"]
+}
+```
+
+**Response**:
+```json
+{
+  "data": {
+    "candidates": {
+      "tkm_symptoms": [
+        {
+          "id": 101,
+          "name": "식적(Food Stagnation)",
+          "description": "체기로 인한 두통과 복부 팽만감",
+          "match_score": 0.92
+        },
+        {
+          "id": 105,
+          "name": "두풍증(Head Wind)",
+          "description": "바람을 쐬면 머리가 아픈 증상",
+          "match_score": 0.85
+        }
+      ],
+      "modern_drugs": [
+        {
+          "id": 501,
+          "name": "타이레놀",
+          "efficacy": "해열 및 진통 완화",
+          "category": "NSAID"
+        },
+        {
+          "id": 505,
+          "name": "베아제",
+          "efficacy": "소화 불량 개선",
+          "category": "Digestive"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+### [Step 3] 최종 리포트 생성 (Synthesize)
+사용자가 선택한 후보를 바탕으로 최종 맞춤형 리포트를 생성합니다.
+
+```http
+POST /analyze/step3-report
+```
+
+**Request Body**:
+```json
+{
+  "session_id": "uuid-1234",
+  "selected_candidates": [
+    { "type": "tkm_symptom", "id": 101 }, // 식적
+    { "type": "modern_drug", "id": 501 }   // 타이레놀 (복용 중인 약)
+  ]
+}
+```
+
+**Response**:
+```json
+{
+  "data": {
+    "summary": "식적(체기)으로 인한 두통이 의심됩니다.",
+    "medication_guide": {
+      "drug_name": "타이레놀",
+      "warning": "음주 전후 복용 금지 (간 손상 위험)",
+      "usage": "식후 30분 복용 권장"
+    },
+    "food_therapy": {
+      "recommended": [
+        { "name": "무(Radish)", "reason": "소화를 돕고 두통 완화" },
+        { "name": "생강차", "reason": "위장 운동 촉진" }
+      ],
+      "avoid": [
+        { "name": "밀가루 음식", "reason": "소화 불량 유발" }
+      ]
+    },
+    "lifestyle_advice": "식사 후 바로 눕지 마시고 가벼운 산책을 하세요."
+  }
+}
+```
+
+---
+
+## 7. Symptom → Content (증상 콘텐츠)
 
 ### 6.1 증상 검색
 ```http
@@ -867,7 +1008,168 @@ POST /admin/restaurants/sync
 
 ---
 
+---
+
+## 6-B. Analysis Pipeline — 처방전 통합 분석 (구현 완료)
+
+> Base URL: `/api/v1/analyze`
+> **실제 구현된 FastAPI 엔드포인트** (2026-02-20 기준)
+
+### [처방전 이미지 통합 분석]
+
+```http
+POST /api/v1/analyze/prescription
+Content-Type: multipart/form-data
+```
+
+**파라미터**: `file` (이미지 파일 — jpg/png/webp)
+
+**처리 파이프라인**:
+```
+Gemini Vision OCR → DUR 병용금기 → MFDS Level A
+→ PubMed Level B → Tavily 웹 Level C → 동의보감 매핑 → 유사처방
+```
+
+**Response**:
+```json
+{
+  "prescriptionSummary": {
+    "drugList": ["타이레놀정", "아목시실린캡슐"],
+    "warnings": "아목시실린 + 타이레놀: 간 부담 주의 (DUR)"
+  },
+  "drugDetails": [
+    {
+      "name": "타이레놀정",
+      "efficacy": "해열 및 진통 완화",
+      "sideEffects": "간 손상 (과다복용 시)"
+    }
+  ],
+  "academicEvidence": {
+    "summary": "식약처 공인 정보 + PubMed 논문 2편 분석 결과",
+    "trustLevel": "A",
+    "papers": [
+      { "title": "...", "url": "https://pubmed.ncbi..." }
+    ]
+  },
+  "lifestyleGuide": {
+    "symptomTokens": ["통증", "발열"],
+    "advice": "복약 중 음주 금지. 충분한 수분 섭취."
+  },
+  "donguibogam": {
+    "foods": [
+      { "name": "생강", "reason": "위장 기능 보호", "precaution": "" }
+    ],
+    "donguiSection": "두통 관련 동의보감 처방",
+    "traditionalPrescriptions": [],
+    "tkmPapers": []
+  }
+}
+```
+
+**trustLevel**: `"A"` (MFDS 있음) | `"B"` (PubMed만) | `"C"` (Tavily/AI)
+
+---
+
+### [Step-by-Step 분석]
+
+```http
+POST /api/v1/analyze/step1-extract    # 키워드 추출
+POST /api/v1/analyze/step2-search     # DB/Vector 후보 검색
+POST /api/v1/analyze/step3-report     # 최종 리포트 생성
+```
+
+---
+
+## 6-C. 낱알 식별 (Pill Identification)
+
+> Base URL: `/api/v1/analyze`
+> 데이터: 식약처 MdcinGrnIdntfcInfoService03 (Level A)
+
+### 약품명으로 낱알 조회
+
+```http
+POST /api/v1/analyze/pill-search/name
+```
+
+**Body**:
+```json
+{ "drug_name": "타이레놀정" }
+```
+
+**Response**:
+```json
+{
+  "total": 3,
+  "items": [
+    {
+      "itemSeq": "198601234",
+      "itemName": "타이레놀정500밀리그람",
+      "manufacturer": "한국얀센",
+      "chart": "흰색의 장방형 필름코팅정",
+      "imageUrl": "https://nedrug.mfds.go.kr/pbp/cmn/itemImageDownload/...",
+      "printFront": "TYLENOL",
+      "printBack": "",
+      "drugShape": "장방형",
+      "colorFront": "하양",
+      "colorBack": "하양",
+      "lineFront": "-",
+      "lineBack": "",
+      "lengLong": "19.1",
+      "lengShort": "8.5",
+      "thick": "5.2",
+      "formName": "필름코팅정",
+      "className": "해열.진통.소염제",
+      "etcOtc": "일반의약품",
+      "ediCode": "643500260",
+      "source": "MFDS_A"
+    }
+  ]
+}
+```
+
+---
+
+### 외형으로 낱알 검색 (약 모양으로 식별)
+
+```http
+POST /api/v1/analyze/pill-search/appearance
+```
+
+**Body** (하나 이상 필수):
+```json
+{
+  "drug_shape": "원형",
+  "color_class1": "하양",
+  "color_class2": "",
+  "mark_front": "500",
+  "mark_back": "",
+  "leng_long": "",
+  "leng_short": ""
+}
+```
+
+**drug_shape 예시**: `원형` | `타원형` | `장방형` | `삼각형` | `사각형` | `오각형` | `육각형` | `팔각형` | `기타`
+
+**color 예시**: `하양` | `노랑` | `주황` | `분홍` | `빨강` | `갈색` | `연두` | `초록` | `청록` | `파랑` | `남색` | `자주` | `보라` | `회색` | `검정` | `투명`
+
+---
+
 ## 📊 API 요약표
+
+> **최종 업데이트**: 2026-02-20
+
+### 구현 완료 (FastAPI — `app/`)
+
+| 엔드포인트 | 메서드 | 설명 | Level |
+|-----------|--------|------|-------|
+| `/api/v1/analyze/prescription` | POST | 처방전 이미지 통합 분석 | A/B/C |
+| `/api/v1/analyze/step1-extract` | POST | 증상/처방전 키워드 추출 | — |
+| `/api/v1/analyze/step2-search` | POST | DB/Vector 후보 검색 | — |
+| `/api/v1/analyze/step3-report` | POST | 최종 리포트 생성 | — |
+| `/api/v1/analyze/pill-search/name` | POST | 약품명으로 낱알 외형 조회 | A |
+| `/api/v1/analyze/pill-search/appearance` | POST | 외형으로 약 식별 | A |
+
+### 설계 명세 (docs/api.md — 구현 예정)
 
 | 도메인 | 엔드포인트 수 | 주요 기능 |
 |--------|--------------|----------|
@@ -883,7 +1185,25 @@ POST /admin/restaurants/sync
 | Billing | 4 | 구독/결제 |
 | Catalog | 4 | 카탈로그 검색 |
 | Admin | 3 | 캐시/동기화 관리 |
-| **총계** | **45** | |
+| **구현 완료 (Analyze)** | **6** | **처방전 분석 + 낱알 식별** |
+| **총계** | **51** | |
+
+---
+
+## 🔌 통합 외부 API
+
+| API | 용도 | Evidence | 엔드포인트 |
+|-----|------|----------|-----------|
+| Gemini 2.0 Flash | Vision OCR + 생성 | C | `generativelanguage.googleapis.com` |
+| Naver Clova OCR | 처방전 OCR | — | `clovaocr.apigw.ntruss.com` |
+| PubMed E-utilities | 임상 논문 검색 | B | `eutils.ncbi.nlm.nih.gov` |
+| 식약처 DrbEasyDrugInfoService | 약물 라벨 | **A** | `apis.data.go.kr/1471000/DrbEasyDrugInfoService` |
+| 식약처 MdcinGrnIdntfcInfoService03 | 낱알 외형 식별 | **A** | `apis.data.go.kr/1471000/MdcinGrnIdntfcInfoService03` |
+| DUR 병용금기 (OdCloud) | 병용금기 | **A** | `api.odcloud.kr/api/15089525/v1/...` |
+| 한국전통지식포털 SimPreInfoService | 유사처방 | TKM | `apis.data.go.kr/1430000/SimPreInfoService` |
+| Tavily Search | 웹 검색 fallback | C | `api.tavily.com/search` |
+| Supabase | DB + Auth + Vector | — | `*.supabase.co` |
+| YouTube Data v3 | 영상 콘텐츠 | — | `youtube.googleapis.com` |
 
 ---
 
@@ -894,6 +1214,7 @@ POST /admin/restaurants/sync
 | `GET /plans` | Public |
 | `GET /catalog/*` | Public |
 | `GET /symptoms` | Public |
+| `POST /api/v1/analyze/*` | Public (현재) / User Token (예정) |
 | `/me/*`, `/intake-items/*`, `/sessions/*` | User Token |
 | `/admin/*` | Service Role |
 | `/billing/webhook` | Webhook Signature |
