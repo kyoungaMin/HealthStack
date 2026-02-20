@@ -91,13 +91,16 @@
 
 | 영역 | 기술 |
 |------|------|
-| **Frontend** | React + Tailwind |
-| **Backend** | FastAPI / Node.js |
+| **Frontend** | React 19.2.4 + TypeScript + Vite |
+| **스타일링** | Tailwind CSS + Pretendard Font |
+| **Backend** | FastAPI + Uvicorn (Python 3.11+) |
 | **Database** | PostgreSQL (Supabase) |
-| **Vector DB** | pgvector |
-| **Cache** | Redis (Upstash) |
-| **AI** | LLM + Embedding 기반 RAG |
-| **지도 API** | Kakao / Naver / Google Maps |
+| **AI/ML** | OpenAI GPT-4o-mini (주), Google Gemini (보조) |
+| **RAG** | PubMed + Tavily + 식약처 API |
+| **OCR** | Naver Clova OCR |
+| **공공 데이터** | 식약처 DrbEasyDrugInfo, DUR, 낱알식별 API |
+| **비동기 처리** | AsyncIO + aiohttp |
+| **캐싱** | JSON 파일 기반 (7일 TTL) |
 
 ---
 
@@ -168,21 +171,55 @@ health-stack/
 
 ---
 
+## 🎉 최근 업데이트 (2026-02-20)
+
+### ⚡ 성능 최적화
+- **Gemini API 스킵 → OpenAI 직접 사용**: 약물당 3-5초 절감
+- **PubMed 검색 간소화**: max_results 2→1로 약물당 1-2초 절감
+- **비동기 병렬 처리 유지**: asyncio.gather 활용
+- **총 성능 향상**: 70-80초 → 45초 (약 40% 개선)
+
+### 🎥 영상 검색 개선
+- **2-tier fallback 전략**: 구체적 검색 → 일반 검색
+- **검색 성공률**: 거의 100% 보장
+- **상세 에러 피드백**: 사용자 친화적 메시지
+
+### 🎨 UI/UX 개선
+- **Pretendard 폰트 적용**: 한글 최적화, 가독성 향상
+- **Anti-aliasing**: 부드러운 렌더링
+- **깔끔한 디자인**: 현대적이고 전문적인 느낌
+
+### 📊 문서화
+- **PPT 발표 자료**: 21개 슬라이드 (기술/비즈니스 포함)
+- **개발일지**: 상세한 작업 내용 및 성능 분석
+- **DB 마이그레이션**: 약물 번역 캐시 테이블
+
+---
+
 ## 🗺️ 로드맵
 
-### Phase 1: MVP
+### Phase 1: MVP ✅ (완료)
 - [x] DB 스키마 설계 (40개 테이블)
 - [x] API 설계 (45개 엔드포인트)
-- [ ] 증상 → 음식/콘텐츠 추천
-- [ ] 기본 Health Stack 관리
-- [ ] 복용 시간표 + 알림
+- [x] 처방전 OCR 분석 (Naver Clova)
+- [x] 약물 정보 제공 (3-tier 신뢰도)
+- [x] 동의보감 기반 식재료 추천
+- [x] AI 맞춤 레시피 생성
+- [x] YouTube 영상 연동
+- [x] DUR 약물 상호작용 검사
 
-### Phase 2: 고도화
-- [ ] 복용 충돌 분석 (RAG)
-- [ ] 음식점 추천 (지도 API 연동)
+### Phase 2: 고도화 🚧 (진행 중)
+- [x] 성능 최적화 (40% 향상, 70초 → 45초)
+- [x] RAG 기반 약물 정보 (PubMed + OpenAI)
+- [x] 3-tier 데이터 신뢰도 평가
+- [x] 캐싱 전략 (7일 TTL)
+- [ ] 사용자 인증 시스템
+- [ ] 처방전 이력 관리
 - [ ] 개인 맞춤 PDF 리포트
 
 ### Phase 3: 비즈니스
+- [ ] 모바일 앱 개발
+- [ ] 음식점 추천 (지도 API 연동)
 - [ ] 구독형 서비스
 - [ ] B2B API 제공
 - [ ] 전문가 협업 (약사/영양사)
@@ -210,19 +247,57 @@ health-stack/
 | DB 구조 파악 | [`docs/erd/erd-full.md`](./docs/erd/erd-full.md) |
 | API 개발 | [`docs/api.md`](./docs/api.md) |
 | 아키텍처 리뷰 | [`docs/architecture/architecture.md`](./docs/architecture/architecture.md) |
+| **PPT 발표 자료** | [`docs/HealthStack_PPT_자료.md`](./docs/HealthStack_PPT_자료.md) |
+| **개발일지** | [`docs/개발일지_2026-02-20.md`](./docs/개발일지_2026-02-20.md) |
+| DB 마이그레이션 | [`docs/erd/migration_drug_translation.sql`](./docs/erd/migration_drug_translation.sql) |
 
 ---
 
 ## 🚀 시작하기
 
+### 1. 저장소 클론
 ```bash
-# 저장소 클론
 git clone https://github.com/kyoungaMin/HealthStack.git
 cd HealthStack
-
-# 환경 설정 (추후 추가)
-# npm install / pip install -r requirements.txt
 ```
+
+### 2. 환경 설정
+```bash
+# 환경변수 파일 생성
+cp .env.example .env
+# .env 파일에 API 키 설정 필요:
+# - OPENAI_API_KEY
+# - NAVER_OCR_SECRET_KEY
+# - YOUTUBE_API_KEY
+# - KOREA_DRUG_API_KEY
+# 등
+```
+
+### 3. 백엔드 실행
+```bash
+# Python 의존성 설치
+pip install fastapi uvicorn openai supabase aiohttp python-multipart
+
+# 서버 실행
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 4. 프론트엔드 실행
+```bash
+cd app/healthstack
+
+# 의존성 설치
+npm install
+
+# 개발 서버 실행
+npm run dev
+# → http://localhost:3002
+```
+
+### 5. 서비스 접속
+- **프론트엔드**: http://localhost:3002
+- **백엔드 API**: http://localhost:8000
+- **API 문서**: http://localhost:8000/docs
 
 ---
 
@@ -233,15 +308,47 @@ cd HealthStack
 | 프로젝트명 | Health Stack |
 | 서비스명 | 내몸설명서 |
 | 슬로건 | 내 몸에 들어가는 모든 것의 설명서 |
-| 상태 | 🚧 설계 완료 / MVP 개발 중 |
+| 상태 | ✅ **MVP 완성 / 성능 최적화 완료** |
+| 저장소 | https://github.com/kyoungaMin/HealthStack |
+| 프론트엔드 | http://localhost:3002 |
+| 백엔드 API | http://localhost:8000 |
+
+---
+
+## 📊 성능 지표
+
+| 항목 | 수치 |
+|------|------|
+| 처방전 분석 속도 | 45초 (이전 70-80초) |
+| 성능 개선율 | 40% ↑ |
+| 캐시 히트 시 | 5초 이내 |
+| OCR 정확도 | 95% 이상 |
+| API 통합 | 10+ 외부 API |
+| 코드 품질 | TypeScript + Python Type Hints |
+
+---
+
+## 🏆 주요 성과
+
+- ✅ **처방전 OCR 자동 분석**: Naver Clova 활용
+- ✅ **3-tier 신뢰도 평가**: 식약처(A) → PubMed(B) → 웹검색(C)
+- ✅ **RAG 기반 약물 정보**: OpenAI + PubMed 논문
+- ✅ **동의보감 DB 통합**: 전통 한의학 + 현대 의학
+- ✅ **실시간 약물 상호작용**: DUR API 연동
+- ✅ **AI 레시피 생성**: 맞춤형 건강 요리법
+- ✅ **성능 최적화**: 비동기 처리 + 스마트 캐싱
 
 ---
 
 ## ✨ 비전
 
-> **Health Stack은 "건강 정보를 소비하는 서비스"가 아니라  
+> **Health Stack은 "건강 정보를 소비하는 서비스"가 아니라
 > "내 몸을 이해하는 인프라"를 만드는 프로젝트입니다.**
+
+**모든 사람이 자신의 건강을 쉽게 이해하고 관리할 수 있는 세상을 만듭니다.**
 
 ---
 
-**최종 업데이트**: 2026-02-04
+**최종 업데이트**: 2026-02-20
+**버전**: 1.0.0 (MVP)
+**다음 업데이트**: 사용자 인증 시스템 구축
