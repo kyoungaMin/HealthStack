@@ -1,208 +1,141 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import './index.css';
-
-// --- Backend API Types ---
-interface Ingredient {
-  rep_code: string;
-  modern_name: string;
-  rationale_ko: string;
-  direction: string;
-  evidence_level: string;
-  pubmed_papers: { pmid: string; title: string; journal: string; pub_year: number; url: string }[];
-  youtube_video: { video_id: string; title: string; channel: string; thumbnail_url: string; url: string } | null;
-  tip: string;
-}
-
-interface BackendResponse {
-  symptom_summary: string;
-  confidence_level: 'high' | 'medium' | 'general';
-  source: 'database' | 'similarity' | 'ai_generated';
-  ingredients: Ingredient[];
-  medications?: { 
-    name_ko: string; 
-    name_en: string; 
-    classification: string;
-    indication: string;
-    common_side_effects: string[];
-    interaction_risk: string;
-  }[];
-  cautions: string[];
-  matched_symptom_name: string | null;
-  disclaimer: string;
-}
-
-interface AnalysisHistory {
-  id: string;
-  date: string;
-  symptom: string;
-  result: BackendResponse | null;
-  aiSummary: string | null;
-}
-
-interface PrescriptionRecord {
-  id: string;
-  date: string;
-  image_url: string;
-  hospital_name: string;
-  drugs: string[];
-}
-
-interface Medication {
-  id: string;
-  name: string;
-  time: string; // "HH:MM" format
-  taken: boolean;
-}
 
 const BACKEND_URL = 'http://localhost:8000';
 
-// --- Golden Questions Data ---
-interface GoldenQuestion {
-  id: string;
-  category: string;
-  q: string;
+// --- Types (SERVICE_PLAN2.md 기준) ---
+interface DrugDetail {
+  name: string;
+  efficacy: string;
+  sideEffects: string;
 }
+
+interface AcademicPaper {
+  title: string;
+  url: string;
+}
+
+interface DonguibogamFood {
+  name: string;
+  reason: string;
+  precaution: string;
+}
+
+interface TraditionalPrescription {
+  name: string;
+  source: string;
+  description: string;
+}
+
+interface TkmPaper {
+  title: string;
+  url: string;
+}
+
+interface AnalysisData {
+  prescriptionSummary: {
+    drugList: string[];
+    warnings: string;
+  };
+  drugDetails: DrugDetail[];
+  academicEvidence: {
+    summary: string;
+    trustLevel: string;
+    papers: AcademicPaper[];
+  };
+  lifestyleGuide: {
+    symptomTokens: string[];
+    advice: string;
+  };
+  donguibogam: {
+    foods: DonguibogamFood[];
+    donguiSection: string;
+    traditionalPrescriptions?: TraditionalPrescription[];
+    tkmPapers?: TkmPaper[];
+  };
+}
+
+interface SavedStack {
+  id: string;
+  date: string;
+  drugList: string[];
+  data: AnalysisData;
+  videos?: { title: string; uri: string }[];
+  dietPlan?: string;
+}
+
+// --- Helpers ---
+const decode = (base64: string) => {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+};
+
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number,
+  numChannels: number,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
+}
+
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = (reader.result as string).split(',')[1];
+      resolve(base64String);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
 
 // --- App Component ---
 
 const App = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'stack' | 'map' | 'report'>('home');
   const [loading, setLoading] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
-  const [backendResult, setBackendResult] = useState<BackendResponse | null>(null);
-  const [groundingLinks, setGroundingLinks] = useState<{ title: string, uri: string }[]>([]);
-  const [recommendedVideos, setRecommendedVideos] = useState<{ title: string, uri: string }[]>([]);
-  const [userInput, setUserInput] = useState('');
-  const [userLocation, setUserLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [loadingStep, setLoadingStep] = useState('');
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [recommendedVideos, setRecommendedVideos] = useState<{title: string; uri: string}[]>([]);
+  const [dietRecommendation, setDietRecommendation] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
-  const [goldenQuestions, setGoldenQuestions] = useState<GoldenQuestion[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('전체');
-  const [faqPage, setFaqPage] = useState(1);
-
-  const [history, setHistory] = useState<AnalysisHistory[]>(() => {
-    try {
-      const saved = localStorage.getItem('health-history');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
-
-  // Guest ID Init
-  const [userId] = useState(() => {
-    let id = localStorage.getItem('guest_user_id');
-    if (!id) {
-      id = 'guest_' + Math.random().toString(36).substr(2, 9);
-      localStorage.setItem('guest_user_id', id);
-    }
-    return id;
-  });
-
-  useEffect(() => {
-    localStorage.setItem('health-history', JSON.stringify(history));
-  }, [history]);
-
-  const categories = React.useMemo(() => {
-    const cats = Array.from(new Set(goldenQuestions.map(q => q.category)));
-    return ['전체', ...cats];
-  }, [goldenQuestions]);
-
-  const filteredQuestions = selectedCategory === '전체'
-    ? goldenQuestions
-    : goldenQuestions.filter(q => q.category === selectedCategory);
-
-  const totalFaqPages = Math.ceil(filteredQuestions.length / 5);
-  const currentFaqItems = filteredQuestions.slice((faqPage - 1) * 5, faqPage * 5);
-
-  // Medication States
-  const [medications, setMedications] = useState<Medication[]>(() => {
-    const saved = localStorage.getItem('medications');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [prescriptionRecords, setPrescriptionRecords] = useState<PrescriptionRecord[]>([]);
-  const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<string | null>(null);
-
-  const [newMedName, setNewMedName] = useState('');
-  const [newMedTime, setNewMedTime] = useState('');
-  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
-
+  const [savedStacks, setSavedStacks] = useState<SavedStack[]>([]);
+  
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [isVideosLoaded, setIsVideosLoaded] = useState(false);
+  const [loadingDiet, setLoadingDiet] = useState(false);
+  const [isDietLoaded, setIsDietLoaded] = useState(false);
+  
   const audioContextRef = useRef<AudioContext | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      });
+    const stored = localStorage.getItem('health_stacks_v3_warm');
+    if (stored) {
+      setSavedStacks(JSON.parse(stored));
     }
-    fetch(`${BACKEND_URL}/api/golden-questions`)
-      .then(res => res.json())
-      .then(data => setGoldenQuestions(data.questions))
-      .catch(err => console.error(err));
   }, []);
 
-  // Fetch prescription records when entering stack tab
   useEffect(() => {
-    if (activeTab === 'stack') {
-      fetch(`${BACKEND_URL}/api/prescriptions?user_id=${userId}`)
-        .then(res => res.json())
-        .then(data => setPrescriptionRecords(data.prescriptions || []))
-        .catch(err => console.error("Failed to fetch prescriptions:", err));
-    }
-  }, [activeTab, userId]);
-
-  // Save medications to local storage
-  useEffect(() => {
-    localStorage.setItem('medications', JSON.stringify(medications));
-  }, [medications]);
-
-  // Check for notifications every minute
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const now = new Date();
-      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-      medications.forEach(med => {
-        if (med.time === currentTime && !med.taken) {
-          if (Notification.permission === 'granted') {
-            new Notification('💊 복용 알림', {
-              body: `${med.name} 복용할 시간이에요!`,
-              icon: '/vite.svg'
-            });
-          }
-        }
-      });
-    }, 60000); // Check every minute
-
-    return () => clearInterval(interval);
-  }, [medications]);
-
-  const requestNotificationPermission = async () => {
-    const permission = await Notification.requestPermission();
-    setNotificationPermission(permission);
-  };
-
-  const addMedication = () => {
-    if (!newMedName || !newMedTime) return;
-    const newMed: Medication = {
-      id: Date.now().toString(),
-      name: newMedName,
-      time: newMedTime,
-      taken: false
-    };
-    setMedications([...medications, newMed]);
-    setNewMedName('');
-    setNewMedTime('');
-  };
-
-  const toggleMedication = (id: string) => {
-    setMedications(medications.map(med =>
-      med.id === id ? { ...med, taken: !med.taken } : med
-    ));
-  };
-
-  const deleteMedication = (id: string) => {
-    setMedications(medications.filter(med => med.id !== id));
-  };
+    localStorage.setItem('health_stacks_v3_warm', JSON.stringify(savedStacks));
+  }, [savedStacks]);
 
   const initAudio = () => {
     if (!audioContextRef.current) {
@@ -210,784 +143,628 @@ const App = () => {
     }
   };
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      handleAnalysisWithImage(file);
-    }
-  };
+    if (!file) return;
 
-  const handleAnalysisWithImage = async (file: File) => {
     setLoading(true);
-    setAnalysisResult(null);
-    setBackendResult(null);
-    setShowResult(false);
-
-    const formData = new FormData();
-    formData.append('symptom', userInput);
-    formData.append('user_id', userId);
-    formData.append('file', file);
-
-    // ★ 추가: 현재 입력된 약물 목록을 JSON으로 전달
-    const medNames = medications.map(med => med.name);
-    formData.append('medications_json', JSON.stringify(medNames));
+    setLoadingStep('소중한 건강 정보를 읽고 있어요...');
+    setIsVideosLoaded(false);
+    setIsDietLoaded(false);
+    setRecommendedVideos([]);
+    setDietRecommendation(null);
 
     try {
-      const res = await fetch(`${BACKEND_URL}/api/analyze-with-image`, {
+      setLoadingStep('처방전을 분석하고 있어요...');
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${BACKEND_URL}/api/v1/analyze/prescription`, {
         method: 'POST',
-        body: formData
+        body: formData,
       });
 
-      if (res.ok) {
-        const data: BackendResponse = await res.json();
-        setBackendResult(data);
-
-        let summary = data.symptom_summary ? (data.symptom_summary + "\n\n") : "";
-
-        if (data.medications && data.medications.length > 0) {
-          summary += `💊 **처방약 분석 결과**\n총 ${data.medications.length}개의 약물이 식별되었습니다. 아래에서 상세 정보를 확인하세요.\n\n`;
-        }
-
-        if (data.ingredients.length > 0) {
-          summary += `🌿 **동의보감 추천 식재료**\n${data.ingredients.map(ing => `👉 **${ing.modern_name}**: ${ing.rationale_ko}`).join('\n')}`;
-        }
-
-        setAnalysisResult(summary);
-
-        const newRecord: AnalysisHistory = {
-          id: Date.now().toString(),
-          date: new Date().toLocaleString(),
-          symptom: "📷 처방전 분석",
-          result: data,
-          aiSummary: summary
-        };
-        setHistory(prev => [newRecord, ...prev]);
-
-        setShowResult(true);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`서버 오류 (${response.status}): ${errText}`);
       }
-    } catch (e) {
-      console.error(e);
-      setAnalysisResult("이미지 분석 중 오류가 발생했습니다.");
+
+      setLoadingStep('동의보감 지혜를 연결하고 있어요...');
+      const data: AnalysisData = await response.json();
+
+      setAnalysisData(data);
+      // 동의보감 데이터가 백엔드에서 함께 오므로 즉시 표시
+      setIsVideosLoaded(true);
+
+      const newEntry: SavedStack = {
+        id: Date.now().toString(),
+        date: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        drugList: data.prescriptionSummary.drugList,
+        data: data
+      };
+
+      setSavedStacks(prev => [newEntry, ...prev]);
       setShowResult(true);
+      setActiveTab('home');
+
+    } catch (error: any) {
+      console.error(error);
+      const msg = error?.message ?? '';
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        alert("백엔드 서버에 연결할 수 없습니다.\n서버가 실행 중인지 확인해주세요 (http://localhost:8000)");
+      } else {
+        alert(`분석에 실패했습니다.\n${msg}`);
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAnalysis = async (query: string) => {
-    if (!query.trim()) return;
-    setLoading(true);
-    setAnalysisResult(null);
-    setBackendResult(null);
-    setGroundingLinks([]);
-    setRecommendedVideos([]);
-    setShowResult(false);
+  const fetchRelatedVideos = async () => {
+    if (!analysisData) {
+      alert('먼저 처방전을 분석해주세요.');
+      return;
+    }
+    if (loadingVideos) return;
+    if (recommendedVideos.length > 0) {
+      console.log('영상이 이미 로드되었습니다.');
+      return;
+    }
 
+    setLoadingVideos(true);
     try {
-      const backendRes = await fetch(`${BACKEND_URL}/api/analyze`, {
+      const foods = analysisData.donguibogam?.foods ?? [];
+      if (foods.length === 0) {
+        alert('추천 식재료가 없어 영상을 검색할 수 없습니다.');
+        setLoadingVideos(false);
+        return;
+      }
+
+      const YOUTUBE_API_KEY = 'AIzaSyDEbol0b3cNklevraAls5OLV2V--6a1Yqw';
+      let videoLinks = [];
+
+      // 전략 1: 첫 번째 식재료로 검색 (가장 구체적)
+      const firstFood = foods[0].name.split(',')[0].trim(); // "생강, 염분이 많은 음식" -> "생강"
+      const searchQuery1 = encodeURIComponent(`${firstFood} 효능 요리법`);
+      console.log('[Video Search] 검색 1:', firstFood);
+
+      const response1 = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery1}&type=video&maxResults=2&key=${YOUTUBE_API_KEY}`);
+      if (response1.ok) {
+        const data1 = await response1.json();
+        console.log('[Video Search] 응답 1:', data1);
+        if (data1.items && data1.items.length > 0) {
+          videoLinks = data1.items.map((item: any) => ({
+            title: item.snippet.title,
+            uri: `https://www.youtube.com/watch?v=${item.id.videoId}`
+          }));
+        }
+      }
+
+      // 전략 2: 결과 없으면 일반적인 건강 요리법으로 검색
+      if (videoLinks.length === 0) {
+        const searchQuery2 = encodeURIComponent('건강 요리법 추천');
+        console.log('[Video Search] 검색 2: 건강 요리법 추천 (fallback)');
+        const response2 = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${searchQuery2}&type=video&maxResults=2&key=${YOUTUBE_API_KEY}`);
+        if (response2.ok) {
+          const data2 = await response2.json();
+          console.log('[Video Search] 응답 2:', data2);
+          videoLinks = data2.items?.map((item: any) => ({
+            title: item.snippet.title,
+            uri: `https://www.youtube.com/watch?v=${item.id.videoId}`
+          })) ?? [];
+        }
+      }
+
+      if (videoLinks.length === 0) {
+        alert('관련 영상을 찾을 수 없습니다.');
+      } else {
+        console.log('[Video Search] 성공:', videoLinks);
+      }
+
+      setRecommendedVideos(videoLinks);
+      setSavedStacks(prev => prev.map((s, i) => i === 0 ? { ...s, videos: videoLinks } : s));
+    } catch (error) {
+      console.error('[Video Search] 오류:', error);
+      alert(`영상 검색 중 오류가 발생했습니다: ${error.message || error}`);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  const fetchDietRecommendation = async () => {
+    if (!analysisData || loadingDiet) return;
+    setLoadingDiet(true);
+    try {
+      const foodNames = (analysisData.donguibogam?.foods ?? []).map((f: any) => f.name).join(', ');
+      const drugNames = (analysisData.prescriptionSummary?.drugList ?? []).join(', ');
+
+      const response = await fetch(`${BACKEND_URL}/api/v1/analyze/diet-recommendation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symptom: query, user_id: userId })
+        body: JSON.stringify({ foodNames, drugNames })
       });
 
-      if (backendRes.ok) {
-        const data: BackendResponse = await backendRes.json();
-        setBackendResult(data);
-
-        const videos = data.ingredients
-          .filter(ing => ing.youtube_video)
-          .map(ing => ({
-            title: ing.youtube_video!.title,
-            uri: ing.youtube_video!.url
-          }));
-        setRecommendedVideos(videos);
-
-        const papers = data.ingredients
-          .flatMap(ing => ing.pubmed_papers)
-          .slice(0, 3)
-          .map(p => ({ title: p.title, uri: p.url }));
-        setGroundingLinks(papers);
-
-        if (data.source !== 'ai_generated' && data.ingredients.length > 0) {
-          const summary = `${data.symptom_summary}\n\n🌿 **동의보감 추천 식재료**\n${data.ingredients.map(ing =>
-            `👉 **${ing.modern_name}**: ${ing.rationale_ko}\n  💡 ${ing.tip}`
-          ).join('\n\n')}\n\n${data.disclaimer}`;
-          setAnalysisResult(summary);
-
-          const newRecord: AnalysisHistory = {
-            id: Date.now().toString(),
-            date: new Date().toLocaleString(),
-            symptom: query,
-            result: data,
-            aiSummary: summary
-          };
-          setHistory(prev => [newRecord, ...prev]);
-          setShowResult(true);
-          return;
-        }
+      if (!response.ok) {
+        throw new Error(`서버 오류 (${response.status})`);
       }
 
-      const ai = new GoogleGenerativeAI((import.meta as any).env.VITE_API_KEY!);
-      const model = ai.getGenerativeModel({ model: "gemini-pro" });
-      const result = await model.generateContent(`사용자의 증상이나 질문: "${query}". 
-        이 내용을 바탕으로 (1) 현재 상태를 친절하게 설명해주고 
-        (2) 현대 의학적 주의사항과 (3) 동의보감 기반 또는 도움이 되는 구체적인 식재료 2-3개를 추천해줘. 
-        말투는 아주 따뜻한 이웃집 약사처럼 해줘. 
-        답변은 3~4개의 섹션으로 나눠서 작성해줘.`);
-
-      const text = result.response.text();
-      setAnalysisResult(text);
-
-      const newRecord: AnalysisHistory = {
-        id: Date.now().toString(),
-        date: new Date().toLocaleString(),
-        symptom: query,
-        result: null,
-        aiSummary: text
-      };
-      setHistory(prev => [newRecord, ...prev]);
-
-      setShowResult(true);
-
+      const data = await response.json();
+      setDietRecommendation(data.recommendation);
+      setIsDietLoaded(true);
+      setSavedStacks(prev => prev.map((s, i) => i === 0 ? { ...s, dietPlan: data.recommendation } : s));
     } catch (error) {
-      console.error(error);
-      setAnalysisResult("🙏 정보를 불러오는 중에 작은 문제가 생겼어요. 다시 한번 말씀해 주시겠어요?");
-      setShowResult(true);
+      console.error('레시피 추천 오류:', error);
+      alert('레시피 추천에 실패했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
-      setLoading(false);
+      setLoadingDiet(false);
     }
   };
 
-  const handleDemo = () => {
-    setAnalysisResult(`안녕하세요! 속이 더부룩하고 어지러우시군요. 복용 중인 혈압약 때문일 가능성이 있어 보여요.
+  const deleteStack = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("이 기록을 삭제하시겠습니까?")) {
+      setSavedStacks(prev => prev.filter(s => s.id !== id));
+    }
+  };
 
-💊 **현재 상태 이해**
-혈압약 성분이 위장을 자극하면 일시적으로 소화기능으로 가는 혈류에 변화를 줄 수 있습니다. 걱정하실 정도는 아니지만 갑자기 일어서면 더 어지러울 수 있으니 주의가 필요해요.
-
-⚠️ **주의사항**
-식사 후 바로 눕지 마시고 30분 정도 가벼운 산책을 권해드려요. 어지러움이 심해지면 주치의와 상담해보시는 것이 좋겠습니다.
-
-🌿 **동의보감 생활 가이드**
-동의보감에서는 이런 증상을 '무'와 '생강'을 권장합니다. 무는 천연 소화제 역할을 하고, 생강은 속의 냉기를 몰아내고 위를 편안하게 하는 데 도움이 됩니다.
-
-📍 **추천 선택지**
-근처에 소화가 편한 '죽 전문점'이나 '한식'을 지도에서 찾아보시는 건 어떨까요?`);
-    setGroundingLinks([
-      { title: "약물 부작용 정보 센터", uri: "#" },
-      { title: "동의보감 식이요법 가이드", uri: "#" }
-    ]);
-    setRecommendedVideos([
-      { title: "속이 편해지는 무나물 맛있게 만드는 법", uri: "https://www.youtube.com/results?search_query=무나물레시피" },
-      { title: "몸을 따뜻하게 하는 생강차 만들기", uri: "https://www.youtube.com/results?search_query=생강차만들기" }
-    ]);
-
-    const demoSummary = `안녕하세요! 속이 더부룩하고 어지러우시군요. 복용 중인 혈압약 때문일 가능성이 있어 보여요.
-
-💊 **현재 상태 이해**
-혈압약 성분이 위장을 자극하면 일시적으로 소화기능으로 가는 혈류에 변화를 줄 수 있습니다. 걱정하실 정도는 아니지만 갑자기 일어서면 더 어지러울 수 있으니 주의가 필요해요.
-
-⚠️ **주의사항**
-식사 후 바로 눕지 마시고 30분 정도 가벼운 산책을 권해드려요. 어지러움이 심해지면 주치의와 상담해보시는 것이 좋겠습니다.
-
-🌿 **동의보감 생활 가이드**
-동의보감에서는 이런 증상을 '무'와 '생강'을 권장합니다. 무는 천연 소화제 역할을 하고, 생강은 속의 냉기를 몰아내고 위를 편안하게 하는 데 도움이 됩니다.
-
-📍 **추천 선택지**
-근처에 소화가 편한 '죽 전문점'이나 '한식'을 지도에서 찾아보시는 건 어떨까요?`;
-
-    const newRecord: AnalysisHistory = {
-      id: Date.now().toString(),
-      date: new Date().toLocaleString(),
-      symptom: "체험하기 예시",
-      result: null,
-      aiSummary: demoSummary
-    };
-    setHistory(prev => [newRecord, ...prev]);
-
+  const viewSavedStack = (stack: SavedStack) => {
+    setAnalysisData(stack.data);
+    setRecommendedVideos(stack.videos || []);
+    setDietRecommendation(stack.dietPlan || null);
+    setIsVideosLoaded(!!stack.videos);
+    setIsDietLoaded(!!stack.dietPlan);
     setShowResult(true);
   };
 
-  const speakResult = async (text: string) => {
-    // TTS Placeholder
-    console.log("TTS not available in this version");
+  const speakSummary = async (text: string) => {
+    initAudio();
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-04-17-tts",
+        contents: [{ parts: [{ text: text.substring(0, 300) }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+        },
+      });
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio && audioContextRef.current) {
+        const audioBuffer = await decodeAudioData(decode(base64Audio), audioContextRef.current, 24000, 1);
+        const source = audioContextRef.current.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContextRef.current.destination);
+        source.start();
+      }
+    } catch (e) { console.error(e); }
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#f8fafc] shadow-2xl overflow-hidden relative border-x border-gray-100">
-
+    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#fffdfa] shadow-2xl overflow-hidden relative border-x border-amber-50 font-sans">
+      
       {/* Header */}
-      <header className="p-6 bg-white flex items-center justify-between border-b border-slate-100 sticky top-0 z-50">
+      <header className="p-5 bg-white flex items-center justify-between border-b border-amber-50 sticky top-0 z-50">
         <div>
-          <h1 className="text-xl font-extrabold text-emerald-600 flex items-center gap-2">
-            <span className="text-2xl">⚕️</span> Health Stack
+          <h1 className="text-xl font-bold text-emerald-600 flex items-center gap-2">
+            <span className="text-2xl">🌱</span> Health Stack <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full ml-1 font-normal">v3</span>
           </h1>
-          <p className="text-[10px] text-slate-400 font-medium tracking-wider">내 몸을 위한 친절한 설명서</p>
+          <p className="text-[10px] text-emerald-400 font-medium tracking-wider">따뜻한 내 몸 설명서</p>
         </div>
-        <button onClick={() => { setAnalysisResult(null); setShowResult(false); setActiveTab('home'); }} className="text-slate-400 text-sm font-medium">초기화</button>
+        {showResult && (
+          <button onClick={() => setShowResult(false)} className="text-amber-600 text-xs font-bold bg-amber-50 px-3 py-1.5 rounded-full hover:bg-amber-100">닫기</button>
+        )}
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-5 pb-32">
-
+      <main className="flex-1 overflow-y-auto p-4 pb-32">
+        
         {activeTab === 'home' && !showResult && (
           <div className="space-y-6 animate-in">
-            <div className="gradient-bg p-8 rounded-[40px] text-white shadow-xl shadow-emerald-100 relative overflow-hidden">
+            <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-8 rounded-[40px] text-white shadow-xl relative overflow-hidden">
               <div className="relative z-10">
-                <h2 className="text-3xl font-gaegu font-bold mb-3">반가워요! 민지님</h2>
-                <p className="text-emerald-50 opacity-95 leading-relaxed text-lg">
-                  오늘 몸 상태는 어떠신가요?<br />
-                  사소한 증상이라도 괜찮아요.<br />
-                  제가 찬찬히 들어드릴게요.
+                <h2 className="text-3xl font-gaegu font-bold mb-3">내 몸 설명서 📖</h2>
+                <p className="text-emerald-50 opacity-90 leading-relaxed text-lg font-gaegu">
+                  오늘 받은 처방전 사진을 올려주세요.<br/>
+                  몸과 마음이 편안해지는 분석으로<br/>
+                  건강을 꼼꼼히 챙겨드릴게요.
                 </p>
               </div>
-              <div className="absolute -bottom-6 -right-6 text-9xl opacity-10 rotate-12">🩺</div>
+              <div className="absolute -bottom-4 -right-4 text-9xl opacity-10 rotate-12">🍃</div>
             </div>
 
-            <div className="health-card p-6 border-2 border-emerald-50">
-              <h3 className="font-extrabold text-slate-800 mb-4 flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                지금 궁금한 점을 적어주세요
+            <div className="bg-white rounded-[32px] p-6 shadow-sm border border-emerald-50">
+              <h3 className="font-bold text-emerald-800 mb-6 flex items-center gap-2 text-lg">
+                <span className="w-2 h-6 bg-emerald-500 rounded-full"></span>
+                지금 시작하기
               </h3>
-              <div className="space-y-4">
-                <textarea
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  placeholder="예: 혈압약을 먹고 있는데 자꾸 어지러워요."
-                  className="w-full h-32 bg-slate-50 border-none rounded-2xl p-4 text-slate-700 focus:ring-2 focus:ring-emerald-500 outline-none resize-none placeholder:text-slate-300"
-                />
-
-
-
-                <div className="flex gap-3">
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                  <button
-                    onClick={() => {
-                      if (!userInput.trim()) {
-                        alert("증상을 먼저 말씀해 주시겠어요? ☺️\n어디가 불편하신지 알면 처방전을 더 꼼꼼히 봐드릴 수 있어요! 💕");
-                        return;
-                      }
-                      fileInputRef.current?.click();
-                    }}
-                    className="px-4 bg-emerald-100 text-emerald-600 font-bold rounded-2xl hover:bg-emerald-200 transition-colors flex items-center gap-2"
-                  >
-                    <span>📷</span> <span className="text-xs">처방전</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleAnalysis(userInput)}
-                    disabled={!userInput.trim() || loading}
-                    className="flex-1 bg-emerald-500 text-white font-bold py-4 rounded-2xl shadow-lg shadow-emerald-200 active:scale-[0.98] transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-                  >
-                    {loading ? (
-                      <>
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                        분석중...
-                      </>
-                    ) : '분석 시작하기'}
-                  </button>
-                  <button
-                    onClick={handleDemo}
-                    className="px-4 bg-indigo-50 text-indigo-600 font-bold rounded-2xl hover:bg-indigo-100 transition-colors flex items-center gap-1"
-                  >
-                    <span>✨</span> 체험하기
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Golden Questions List (Bottom) with Pagination */}
-            <div className="mt-8 mb-10">
-              <h3 className="font-bold text-slate-700 text-sm mb-4 px-2 flex items-center gap-2">
-                <span className="text-xl">💡</span> 자주 묻는 질문
-              </h3>
-
-              {/* Category Tabs */}
-              <div className="flex gap-2 overflow-x-auto pb-4 -mx-2 px-2 snap-x scrollbar-hide mb-2">
-                {categories.map((cat, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setSelectedCategory(cat); setFaqPage(1); }}
-                    className={`whitespace-nowrap px-4 py-2 text-xs font-bold rounded-full transition-all flex-shrink-0 snap-start border ${selectedCategory === cat ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 border-emerald-600' : 'bg-white text-slate-500 border-slate-100'}`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-              </div>
-
-              {/* Questions List */}
-              <div className="space-y-3 min-h-[300px]">
-                {currentFaqItems.length === 0 ? (
-                  <div className="text-center py-10 text-slate-400 text-sm">질문이 없습니다.</div>
-                ) : (
-                  currentFaqItems.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => { setUserInput(item.q); handleAnalysis(item.q); }}
-                      className="w-full text-left p-4 bg-white rounded-2xl shadow-sm border border-slate-100 hover:border-emerald-300 hover:bg-emerald-50/30 hover:shadow-md transition-all active:scale-[0.99] group"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
-                          {item.category}
-                        </span>
-                        <span className="text-[10px] text-slate-300 font-mono">#{item.id}</span>
-                      </div>
-                      <p className="text-slate-700 text-[13px] font-medium leading-relaxed group-hover:text-emerald-800 transition-colors">
-                        {item.q}
-                      </p>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              {/* Pagination */}
-              {totalFaqPages > 1 && (
-                <div className="flex justify-center gap-2 mt-4 pb-4">
-                  <button
-                    onClick={() => setFaqPage(p => Math.max(1, p - 1))}
-                    disabled={faqPage === 1}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 flex items-center justify-center font-bold"
-                  >
-                    &lt;
-                  </button>
-                  <div className="flex items-center justify-center px-4 bg-white rounded-xl border border-slate-100 text-sm font-bold text-slate-600">
-                    {faqPage} / {totalFaqPages}
-                  </div>
-                  <button
-                    onClick={() => setFaqPage(p => Math.min(totalFaqPages, p + 1))}
-                    disabled={faqPage === totalFaqPages}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-slate-500 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 flex items-center justify-center font-bold"
-                  >
-                    &gt;
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Analysis Result View */}
-        {showResult && (
-          <div className="space-y-6 animate-in pb-20">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => { setShowResult(false); setAnalysisResult(null); }}
-                className="px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50"
-              >
-                ← 뒤로
-              </button>
-              <h2 className="text-lg font-extrabold text-slate-800">분석 결과</h2>
-              <div className="w-16"></div>
-            </div>
-
-            <div className="health-card overflow-hidden">
-              <div className="bg-emerald-50/50 p-4 border-b border-emerald-100 flex justify-between items-center">
-                <span className="font-bold text-emerald-800 flex items-center gap-2">
-                  <span className="text-xl">🤖</span> AI 건강 분석
-                </span>
-                <button
-                  onClick={() => analysisResult && speakResult(analysisResult)}
-                  className="p-2 bg-white rounded-full shadow-sm text-emerald-600 hover:text-emerald-700 active:scale-95 transition-all"
-                  title="읽어주기"
+              
+              <div className="grid gap-4">
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group relative flex flex-col items-center justify-center p-12 bg-emerald-50 border-2 border-dashed border-emerald-200 rounded-[32px] hover:bg-emerald-100/50 transition-all active:scale-95"
                 >
-                  🔊
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md mb-4 group-hover:scale-110 transition-transform">
+                    <span className="text-3xl">📸</span>
+                  </div>
+                  <p className="font-bold text-emerald-800">처방전 분석하기</p>
+                  <p className="text-[10px] text-emerald-400 mt-2 font-medium">따뜻한 약사가 꼼꼼히 읽어드립니다</p>
+                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
                 </button>
               </div>
-              <div className="p-6 space-y-6">
-                <div className="text-slate-700 text-[15px] leading-relaxed whitespace-pre-wrap">
-                  {analysisResult}
+            </div>
+
+            {/* Feature Examples Section */}
+            <div className="px-2">
+              <h3 className="font-bold text-amber-500/60 text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2">
+                ✨ 따스한 건강 리포트 미리보기
+              </h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white p-5 rounded-[28px] border border-emerald-50 shadow-sm space-y-2">
+                  <div className="w-9 h-9 bg-emerald-50 rounded-full flex items-center justify-center text-lg">💊</div>
+                  <h4 className="text-xs font-bold text-emerald-800">약물 기전 분석</h4>
+                  <p className="text-[10px] text-slate-500 leading-tight">약이 몸에서 어떻게 속삭이는지 쉽게 설명해요.</p>
                 </div>
-
-                {/* Medication Info Section */}
-                {backendResult?.medications && backendResult.medications.length > 0 && (
-                  <div className="mt-6 border-t border-slate-100 pt-6">
-                    <h4 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <span className="text-lg">💊</span> 복용 약물 정보
-                    </h4>
-                    <div className="space-y-4">
-                      {backendResult.medications.map((med, idx) => (
-                        <div key={idx} className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                          <div className="mb-3">
-                            <h5 className="font-bold text-blue-900 text-sm">
-                              {med.name_ko}
-                              {med.name_en && <span className="text-xs text-blue-600 ml-2">({med.name_en})</span>}
-                            </h5>
-                            <span className="text-[10px] bg-blue-200 text-blue-700 px-2 py-0.5 rounded-full inline-block mt-1">
-                              {med.classification || '의약품'}
-                            </span>
-                          </div>
-                          
-                          <div className="text-xs text-slate-700 space-y-2 mb-3">
-                            {med.indication && (
-                              <div>
-                                <span className="font-semibold text-blue-900">주요 효능:</span>
-                                <p className="text-slate-700 ml-2">{med.indication}</p>
-                              </div>
-                            )}
-                            
-                            {med.common_side_effects && med.common_side_effects.length > 0 && (
-                              <div>
-                                <span className="font-semibold text-red-600">⚠️ 주요 부작용:</span>
-                                <ul className="text-slate-700 ml-2 list-disc list-inside">
-                                  {med.common_side_effects.map((effect, i) => (
-                                    <li key={i}>{effect}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            
-                            {med.interaction_risk && med.interaction_risk !== 'unknown' && (
-                              <div>
-                                <span className="font-semibold text-slate-900">상호작용 위험:</span>
-                                <span className={`ml-2 px-2 py-0.5 rounded text-xs font-bold ${
-                                  med.interaction_risk === 'high' ? 'bg-red-100 text-red-700' :
-                                  med.interaction_risk === 'medium' ? 'bg-yellow-100 text-yellow-700' :
-                                  med.interaction_risk === 'low' ? 'bg-green-100 text-green-700' :
-                                  'bg-gray-100 text-gray-700'
-                                }`}>
-                                  {med.interaction_risk === 'high' ? '높음' :
-                                   med.interaction_risk === 'medium' ? '중간' :
-                                   med.interaction_risk === 'low' ? '낮음' :
-                                   '정보 없음'}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Recommended Videos Section */}
-                {recommendedVideos.length > 0 && (
-                  <div className="pt-6 border-t border-slate-100">
-                    <h4 className="text-xs font-bold text-slate-500 mb-4 flex items-center gap-2">
-                      <span className="text-red-500">▶</span> 추천 식재료 활용 영상
-                    </h4>
-                    <div className="grid gap-3">
-                      {recommendedVideos.map((video, i) => (
-                        <a
-                          key={i}
-                          href={video.uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl hover:bg-red-50 transition-colors border border-transparent hover:border-red-100 group"
-                        >
-                          <div className="w-14 h-10 bg-slate-200 rounded-lg flex items-center justify-center text-slate-400 group-hover:bg-red-200 group-hover:text-red-500 transition-colors">
-                            <span className="text-lg">▶</span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-700 truncate group-hover:text-red-700">{video.title}</p>
-                            <p className="text-[10px] text-slate-400">유튜브에서 보기</p>
-                          </div>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {groundingLinks.length > 0 && (
-                  <div className="pt-6 border-t border-slate-100">
-                    <h4 className="text-xs font-bold text-slate-400 mb-4 flex items-center gap-1 uppercase tracking-widest">
-                      참고 자료
-                    </h4>
-                    <div className="grid gap-2">
-                      {groundingLinks.map((link, i) => (
-                        <a
-                          key={i}
-                          href={link.uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-3 bg-slate-50 rounded-xl flex items-center justify-between group hover:bg-emerald-50 transition-colors"
-                        >
-                          <span className="text-xs text-slate-600 font-medium group-hover:text-emerald-700 truncate pr-4">{link.title}</span>
-                          <span className="text-slate-300 group-hover:text-emerald-400 text-xs">↗</span>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <div className="bg-white p-5 rounded-[28px] border border-emerald-50 shadow-sm space-y-2">
+                  <div className="w-9 h-9 bg-teal-50 rounded-full flex items-center justify-center text-lg">🔬</div>
+                  <h4 className="text-xs font-bold text-emerald-800">PubMed 근거</h4>
+                  <p className="text-[10px] text-slate-500 leading-tight">글로벌 지식으로 탄탄한 신뢰를 드립니다.</p>
+                </div>
+                <div className="bg-white p-5 rounded-[28px] border border-amber-50 shadow-sm space-y-2">
+                  <div className="w-9 h-9 bg-amber-50 rounded-full flex items-center justify-center text-lg">📜</div>
+                  <h4 className="text-xs font-bold text-amber-800">동의보감 지혜</h4>
+                  <p className="text-[10px] text-slate-500 leading-tight">예로부터 전해오는 자연의 치유법을 매칭해요.</p>
+                </div>
+                <div className="bg-white p-5 rounded-[28px] border border-rose-50 shadow-sm space-y-2">
+                  <div className="w-9 h-9 bg-rose-50 rounded-full flex items-center justify-center text-lg">🥘</div>
+                  <h4 className="text-xs font-bold text-rose-800">AI 식단 큐레이션</h4>
+                  <p className="text-[10px] text-slate-500 leading-tight">맛있는 한 끼로 건강까지 채워드릴게요.</p>
+                </div>
               </div>
             </div>
-
-            {/* Quick Actions after result */}
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => setActiveTab('map')}
-                className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg flex items-center justify-center gap-2"
-              >
-                📍 근처 건강 식당 & 약국 찾기
-              </button>
-              <button
-                onClick={() => { setShowResult(false); setUserInput(''); setRecommendedVideos([]); }}
-                className="w-full bg-white text-emerald-600 border-2 border-emerald-100 font-bold py-4 rounded-2xl"
-              >
-                다른 증상 물어보기
-              </button>
-            </div>
           </div>
         )}
 
-        {/* Existing Tab Contents */}
-        {activeTab === 'map' && !showResult && (
-          <div className="space-y-4 animate-in">
-            <div className="health-card p-6 bg-blue-50/30 border-blue-100">
-              <h2 className="text-xl font-bold text-blue-800 mb-2">📍 내 주변 건강 찾기 팁</h2>
-              <p className="text-sm text-blue-600 mb-6">현재 위치를 기반으로 증상에 좋은 식당과 약국을 찾아드릴게요.</p>
-              <button
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    const ai = new GoogleGenerativeAI(process.env.API_KEY!);
-                    const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-                    const result = await model.generateContent("내 주변의 건강한 식당이나 죽집, 혹은 약국이 어디에 있니? (참고: 현재 위치 " + JSON.stringify(userLocation) + ")");
-                    const text = result.response.text();
-                    setAnalysisResult(text);
-                    setShowResult(true);
-                  } catch (e) { } finally { setLoading(false); }
-                }}
-                className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all"
-              >
-                🏥 내 주변 병원/약국 찾기 (AI 검색)
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Results View - SERVICE_PLAN2.md 5개 섹션 */}
+        {showResult && analysisData && (
+          <div className="space-y-6 animate-in pb-10">
 
-        {/* Report Tab (History) */}
-        {activeTab === 'report' && (
-          <div className="space-y-6 animate-in">
-            <div className="gradient-bg p-6 rounded-[30px] text-white shadow-lg mb-6">
-              <h2 className="text-2xl font-bold mb-2">나의 건강 기록 📋</h2>
-              <p className="opacity-90 text-sm">지난 분석 결과를 다시 확인해보세요.</p>
-            </div>
-
-            <div className="px-2">
-              {history.length === 0 ? (
-                <div className="text-center py-20">
-                  <div className="text-4xl mb-4 opacity-30">📭</div>
-                  <p className="text-slate-400 font-medium">아직 분석 기록이 없어요.<br />증상이나 처방전을 분석해보세요!</p>
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* Section 1 — 처방전 요약 */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">SECTION 1</span>
+                <h3 className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest">처방전 요약</h3>
+              </div>
+              <section className="bg-white rounded-[32px] overflow-hidden shadow-sm border border-emerald-50">
+                <div className="p-5 bg-emerald-600 text-white flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">📝</span>
+                    <div>
+                      <h3 className="font-bold">복용 약물 목록</h3>
+                      <p className="text-[10px] opacity-80">{analysisData.prescriptionSummary.drugList.length}종 분석 완료</p>
+                    </div>
+                  </div>
+                  <button onClick={() => speakSummary(analysisData.prescriptionSummary.warnings)} className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-xl hover:bg-white/30 transition-colors">🔊</button>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {history.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        setAnalysisResult(item.aiSummary);
-                        setBackendResult(item.result);
-                        setShowResult(true);
-                        setActiveTab('home');
-                      }}
-                      className="w-full text-left bg-white p-5 rounded-3xl shadow-sm border border-slate-100 hover:border-emerald-200 hover:shadow-md transition-all group relative overflow-hidden"
-                    >
-                      <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-xs bg-emerald-100 text-emerald-600 font-bold px-2 py-1 rounded-full">다시 보기 →</span>
+                <div className="p-5 space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {analysisData.prescriptionSummary.drugList.map((drug: string, i: number) => (
+                      <span key={i} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100">{drug}</span>
+                    ))}
+                  </div>
+                  <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 flex gap-3">
+                    <span className="text-rose-500 font-bold text-lg">💡</span>
+                    <p className="text-xs text-rose-800 leading-normal font-medium">{analysisData.prescriptionSummary.warnings}</p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* Section 2 — 약 이해 (각 약물별 효능·부작용) */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {analysisData.drugDetails && analysisData.drugDetails.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">SECTION 2</span>
+                  <h3 className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">약 이해 - 효능·부작용</h3>
+                </div>
+                <div className="space-y-3">
+                  {analysisData.drugDetails.map((drug: DrugDetail, i: number) => (
+                    <section key={i} className="bg-white rounded-[24px] p-5 shadow-sm border border-blue-50">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-xl flex-shrink-0">💊</div>
+                        <div className="flex-1">
+                          <h4 className="font-bold text-blue-900 text-sm mb-1">{drug.name}</h4>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-full">{item.date.split('.').slice(1, 3).join('.')} {item.date.split(' ')[3]}</span>
-                        {item.result?.medications && item.result.medications.length > 0 && (
-                          <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-full">💊 처방전</span>
+                      <div className="space-y-2">
+                        <div className="bg-blue-50/30 p-3 rounded-xl">
+                          <p className="text-[10px] text-blue-600 font-bold mb-1">🟢 효능·효과</p>
+                          <p className="text-[11px] text-blue-900/80 leading-relaxed">{drug.efficacy || '정보 없음'}</p>
+                        </div>
+                        {drug.sideEffects && (
+                          <div className="bg-orange-50/30 p-3 rounded-xl">
+                            <p className="text-[10px] text-orange-600 font-bold mb-1">⚠️ 주의사항·부작용</p>
+                            <p className="text-[11px] text-orange-900/80 leading-relaxed">{drug.sideEffects}</p>
+                          </div>
                         )}
                       </div>
-                      <h3 className="text-slate-800 font-bold text-lg mb-2 truncate pr-16">{item.symptom}</h3>
-                      <p className="text-slate-500 text-sm line-clamp-2 leading-relaxed bg-slate-50 p-3 rounded-xl">
-                        {item.aiSummary?.replace(/\*\*/g, '').slice(0, 80)}...
-                      </p>
-                    </button>
+                    </section>
                   ))}
-                  <button
-                    onClick={() => { if (confirm('기록을 모두 삭제하시겠습니까?')) setHistory([]); }}
-                    className="w-full py-4 text-xs text-slate-400 underline hover:text-red-400 transition-colors"
-                  >
-                    기록 전체 삭제
-                  </button>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Medication Management Tab (Stack) */}
-        {activeTab === 'stack' && !showResult && (
-          <div className="space-y-6 animate-in">
-            {/* 알림 권한 배너 */}
-            {notificationPermission !== 'granted' && (
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex justify-between items-center">
-                <div className="text-xs text-emerald-700">
-                  <p className="font-bold">🔔 알림을 켜주세요</p>
-                  <p>제 시간에 약을 챙겨드릴게요.</p>
-                </div>
-                <button
-                  onClick={requestNotificationPermission}
-                  className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-sm"
-                >
-                  알림 허용
-                </button>
               </div>
             )}
 
-            {/* 처방전 기록 섹션 */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* Section 3 — 학술 근거 (PubMed) */}
+            {/* ═══════════════════════════════════════════════════════ */}
             <div className="space-y-4">
-              <h3 className="font-extrabold text-slate-800 text-lg flex items-center gap-2 px-2">
-                <span className="text-xl">📷</span> 나의 처방전 기록
-              </h3>
-
-              {prescriptionRecords.length === 0 ? (
-                <div className="bg-white rounded-2xl p-6 text-center border border-slate-100 shadow-sm">
-                  <p className="text-slate-400 text-sm">저장된 처방전이 없습니다.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {prescriptionRecords.map(record => (
-                    <div key={record.id} className="bg-white rounded-2xl border border-emerald-100 shadow-sm overflow-hidden transition-all">
-                      <button
-                        onClick={() => setSelectedPrescriptionId(selectedPrescriptionId === record.id ? null : record.id)}
-                        className="w-full p-4 flex items-center justify-between hover:bg-emerald-50/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-xl">🏥</div>
-                          <div className="text-left">
-                            <p className="font-bold text-slate-700 text-sm">{record.hospital_name}</p>
-                            <p className="text-xs text-slate-400">{record.date}</p>
-                          </div>
-                        </div>
-                        <span className={`text-slate-300 transition-transform ${selectedPrescriptionId === record.id ? 'rotate-180' : ''}`}>▼</span>
-                      </button>
-
-                      {selectedPrescriptionId === record.id && (
-                        <div className="bg-emerald-50/30 p-4 border-t border-emerald-100 animate-in">
-                          <div className="mb-4">
-                            <h4 className="text-xs font-bold text-slate-500 mb-2">처방 약물 목록</h4>
-                            <div className="flex flex-wrap gap-2">
-                              {record.drugs.map((drug, i) => (
-                                <span key={i} className="bg-white border border-emerald-200 text-emerald-700 px-2 py-1 rounded-lg text-xs font-bold shadow-sm">
-                                  {drug}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          {record.image_url && (
-                            <div className="mt-3">
-                              <p className="text-xs font-bold text-slate-500 mb-2">원본 이미지</p>
-                              <img src={`${BACKEND_URL}${record.image_url}`} alt="처방전" className="w-full rounded-xl border border-slate-200" />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="border-t border-slate-200 my-2"></div>
-
-            <div className="health-card p-6">
-              <h3 className="font-extrabold text-slate-800 mb-4 flex items-center gap-2">
-                <span className="text-xl">💊</span> 새 알림 추가
-              </h3>
-              <div className="flex gap-2 mb-3">
-                <input
-                  type="text"
-                  value={newMedName}
-                  onChange={(e) => setNewMedName(e.target.value)}
-                  placeholder="약 이름 (예: 혈압약)"
-                  className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-                />
-                <input
-                  type="time"
-                  value={newMedTime}
-                  onChange={(e) => setNewMedTime(e.target.value)}
-                  className="bg-slate-50 border-none rounded-xl px-3 py-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none w-24"
-                />
+              <div className="flex items-center gap-2">
+                <span className="bg-teal-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">SECTION 3</span>
+                <h3 className="text-teal-400 text-[10px] font-bold uppercase tracking-widest">학술 근거</h3>
               </div>
-              <button
-                onClick={addMedication}
-                disabled={!newMedName || !newMedTime}
-                className="w-full bg-emerald-500 text-white font-bold py-3 rounded-xl shadow-md disabled:opacity-50 disabled:shadow-none transition-all hover:bg-emerald-600 active:scale-[0.98]"
-              >
-                추가하기
-              </button>
+              <section className="bg-white rounded-[32px] p-6 shadow-sm border border-teal-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl">🔬</span>
+                  <h3 className="font-bold text-teal-800 text-sm">PubMed 기반 분석</h3>
+                  <span className="text-[9px] bg-teal-100 text-teal-600 px-2 py-0.5 rounded-full font-bold ml-auto">
+                    신뢰 등급: {analysisData.academicEvidence.trustLevel}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed bg-teal-50/20 p-4 rounded-2xl mb-4 italic">
+                  "{analysisData.academicEvidence.summary}"
+                </p>
+                {analysisData.academicEvidence.papers && analysisData.academicEvidence.papers.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-teal-700 font-bold">📚 참고 논문</p>
+                    {analysisData.academicEvidence.papers.map((paper: AcademicPaper, i: number) => (
+                      <a key={i} href={paper.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-teal-50/30 rounded-xl hover:bg-teal-50 transition-colors">
+                        <p className="text-[11px] text-teal-900 font-medium leading-relaxed">{paper.title}</p>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
             </div>
 
-            <div className="space-y-3">
-              <h3 className="font-bold text-slate-400 text-xs px-2">나의 복용 목록</h3>
-              {medications.length === 0 ? (
-                <div className="text-center py-10 text-slate-300">
-                  <p className="text-4xl mb-2">📭</p>
-                  <p className="text-sm">등록된 알림이 없어요</p>
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* Section 4 — 생활 가이드 */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">SECTION 4</span>
+                <h3 className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">생활 가이드</h3>
+              </div>
+              <section className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-[32px] p-6 shadow-sm border border-purple-100">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xl">💡</span>
+                  <h3 className="font-bold text-purple-800 text-sm">주의 증상 & 식습관 권장</h3>
                 </div>
-              ) : (
-                medications.map(med => (
-                  <div key={med.id} className={`health-card p-4 flex items-center justify-between transition-all ${med.taken ? 'opacity-60 bg-slate-50' : ''}`}>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => toggleMedication(med.id)}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${med.taken ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-slate-200 text-transparent hover:border-emerald-300'}`}
-                      >
-                        ✓
-                      </button>
-                      <div>
-                        <p className={`font-bold text-slate-800 ${med.taken ? 'line-through text-slate-400' : ''}`}>{med.name}</p>
-                        <p className="text-xs text-slate-500 flex items-center gap-1">
-                          <span>⏰</span> {med.time}
-                        </p>
-                      </div>
+                {analysisData.lifestyleGuide.symptomTokens && analysisData.lifestyleGuide.symptomTokens.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-[10px] text-purple-600 font-bold mb-2">🏷️ 관련 증상</p>
+                    <div className="flex flex-wrap gap-2">
+                      {analysisData.lifestyleGuide.symptomTokens.map((token: string, i: number) => (
+                        <span key={i} className="px-2 py-1 bg-white text-purple-700 rounded-lg text-[11px] font-bold border border-purple-100">
+                          {token}
+                        </span>
+                      ))}
                     </div>
-                    <button onClick={() => deleteMedication(med.id)} className="text-slate-300 hover:text-red-400 p-2 text-sm">삭제</button>
                   </div>
-                ))
+                )}
+                <div className="bg-white/70 p-4 rounded-2xl border border-purple-200/50">
+                  <p className="text-[12px] text-purple-900 leading-relaxed font-medium">
+                    {analysisData.lifestyleGuide.advice}
+                  </p>
+                </div>
+              </section>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* Section 5 — 동의보감 추천 */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">SECTION 5</span>
+                <h3 className="text-amber-900/40 text-[10px] font-bold uppercase tracking-widest">동의보감 추천</h3>
+              </div>
+              <section className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-[32px] p-6 shadow-sm border border-amber-100">
+                <div className="bg-white/70 p-4 rounded-2xl mb-5 italic text-sm text-amber-900 border border-amber-200/50 leading-relaxed font-gaegu text-lg">
+                  "{analysisData.donguibogam.donguiSection}"
+                </div>
+
+                {/* 식재료 추천 */}
+                {analysisData.donguibogam.foods && analysisData.donguibogam.foods.length > 0 && (
+                  <div className="mb-5">
+                    <h5 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-3">🌿 추천 식재료</h5>
+                    <div className="grid gap-3">
+                      {analysisData.donguibogam.foods.map((food: DonguibogamFood, i: number) => (
+                        <div key={i} className="bg-white p-4 rounded-2xl shadow-sm border border-amber-100 flex items-start gap-4">
+                          <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center text-xl flex-shrink-0">🍲</div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-amber-900 text-sm mb-1">{food.name}</h4>
+                            <p className="text-[11px] text-amber-800/80 leading-relaxed mb-1">{food.reason}</p>
+                            {food.precaution && (
+                              <p className="text-[10px] text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded inline-block">
+                                참고: {food.precaution}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 유사 처방 (한국전통지식포털) */}
+                {analysisData.donguibogam.traditionalPrescriptions && analysisData.donguibogam.traditionalPrescriptions.length > 0 && (
+                  <div className="mb-5 pt-5 border-t border-amber-200">
+                    <h5 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-3">📜 유사 한방 처방</h5>
+                    <div className="space-y-2">
+                      {analysisData.donguibogam.traditionalPrescriptions.map((pres: TraditionalPrescription, i: number) => (
+                        <div key={i} className="bg-white p-3 rounded-xl border border-amber-100">
+                          <p className="text-[11px] font-bold text-amber-900 mb-1">{pres.name}</p>
+                          <p className="text-[10px] text-amber-700">출처: {pres.source}</p>
+                          <p className="text-[10px] text-amber-800/70 mt-1">{pres.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 한의학 논문 */}
+                {analysisData.donguibogam.tkmPapers && analysisData.donguibogam.tkmPapers.length > 0 && (
+                  <div className="mb-5 pt-5 border-t border-amber-200">
+                    <h5 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-3">📚 한의학 연구 논문</h5>
+                    <div className="space-y-2">
+                      {analysisData.donguibogam.tkmPapers.map((paper: TkmPaper, i: number) => (
+                        <a key={i} href={paper.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-white rounded-xl border border-amber-100 hover:bg-amber-50/50 transition-colors">
+                          <p className="text-[10px] text-amber-900 leading-relaxed">{paper.title}</p>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 관련 영상 (선택적 로드) */}
+                {loadingVideos ? (
+                  <div className="mt-5 py-6 flex flex-col items-center gap-2">
+                    <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-[10px] text-amber-600 font-bold">힐링 영상을 찾는 중...</p>
+                  </div>
+                ) : recommendedVideos.length > 0 ? (
+                  <div className="mt-5 pt-5 border-t border-amber-200">
+                    <h5 className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-3">📺 건강을 요리하는 영상</h5>
+                    <div className="grid grid-cols-2 gap-3">
+                      {recommendedVideos.map((v, i) => (
+                        <a key={i} href={v.uri} target="_blank" rel="noopener noreferrer" className="bg-white rounded-xl overflow-hidden shadow-sm hover:scale-[1.02] transition-transform">
+                          <div className="h-20 bg-amber-50 flex items-center justify-center text-2xl opacity-60">🍯</div>
+                          <div className="p-2 truncate text-[10px] font-bold text-amber-900">{v.title}</div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={fetchRelatedVideos} className="mt-5 w-full text-[10px] font-bold text-amber-600 bg-white py-2 rounded-xl hover:bg-amber-50 transition-colors border border-amber-200">
+                    📺 관련 건강 영상 찾기
+                  </button>
+                )}
+              </section>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════ */}
+            {/* 추가: AI 레시피 생성 (Optional) */}
+            {/* ═══════════════════════════════════════════════════════ */}
+            <div className="space-y-4">
+              {!isDietLoaded && !loadingDiet ? (
+                <button onClick={fetchDietRecommendation} className="w-full p-6 rounded-[32px] flex flex-col items-center gap-2 shadow-sm transition-all bg-gradient-to-br from-rose-400 to-pink-500 text-white shadow-rose-100 hover:brightness-105 active:scale-95">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">🍯</span>
+                    <span className="font-bold text-lg">AI 맞춤 레시피</span>
+                  </div>
+                  <p className="text-[10px] opacity-90 font-medium">지금 내 몸에 꼭 필요한 따뜻한 한 끼</p>
+                </button>
+              ) : (
+                <div className="animate-in space-y-4">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">AI 레시피</span>
+                    <h3 className="text-rose-900/40 text-[10px] font-bold uppercase tracking-widest">맞춤 힐링 레시피</h3>
+                  </div>
+                  <section className="bg-white rounded-[32px] p-6 shadow-md border-t-4 border-rose-400">
+                    {loadingDiet ? (
+                      <div className="py-10 flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-4 border-rose-100 border-t-rose-500 rounded-full animate-spin"></div>
+                        <p className="text-rose-600 font-bold text-sm">레시피를 정성껏 작성 중...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-rose-800 font-bold flex items-center gap-2">
+                            <span className="text-lg">👩‍🍳</span> 정성이 담긴 오늘의 메뉴
+                          </h4>
+                          <button onClick={() => speakSummary(dietRecommendation || '')} className="text-rose-400 text-lg hover:text-rose-500 transition-colors">🔊</button>
+                        </div>
+                        <div className="text-slate-600 text-sm leading-relaxed whitespace-pre-wrap bg-rose-50/20 p-5 rounded-2xl border border-rose-50 font-medium font-gaegu text-xl">
+                          {dietRecommendation}
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                </div>
               )}
             </div>
 
-            <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100 text-[11px] text-orange-700 leading-relaxed">
-              <span className="font-bold block mb-1">💡 잊지 마세요!</span>
-              약을 드신 후 체크 버튼(○)을 눌러 완료 표시를 해주세요. 기록이 쌓이면 건강 관리에 도움이 됩니다.
-            </div>
-          </div >
-        )}
-
-      </main >
-
-      {/* Bottom Navigation */}
-      < nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-slate-100 flex justify-around p-3 pb-8 z-50" >
-        <button onClick={() => { setActiveTab('home'); setShowResult(false); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'home' ? 'nav-active' : 'text-slate-300'}`}>
-          <span className="text-xl">🏠</span>
-          <span className="text-[10px]">홈</span>
-        </button>
-        <button onClick={() => { setActiveTab('stack'); setShowResult(false); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'stack' ? 'nav-active' : 'text-slate-300'}`}>
-          <span className="text-xl">📋</span>
-          <span className="text-[10px]">나의 처방전</span>
-        </button>
-        <button onClick={() => { setActiveTab('map'); setShowResult(false); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'map' ? 'nav-active' : 'text-slate-300'}`}>
-          <span className="text-xl">📍</span>
-          <span className="text-[10px]">지도</span>
-        </button>
-        <button onClick={() => { setActiveTab('report'); setShowResult(false); }} className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'report' ? 'nav-active' : 'text-slate-300'}`}>
-          <span className="text-xl">📊</span>
-          <span className="text-[10px]">리포트</span>
-        </button>
-      </nav >
-
-      {/* Loading Overlay */}
-      {
-        loading && (
-          <div className="absolute inset-0 bg-white/70 backdrop-blur-[4px] z-[100] flex flex-col items-center justify-center px-10 text-center">
-            <div className="relative w-20 h-20 mb-6">
-              <div className="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
-              <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-            <h3 className="text-xl font-bold text-emerald-800 mb-2">분석하고 있어요</h3>
-            <p className="text-emerald-600 font-gaegu text-lg leading-tight">
-              당신의 건강 기록과 어울리는<br />영상을 찾고 있습니다. 잠시만요!
+            <p className="text-[10px] text-slate-400 text-center px-6 leading-relaxed opacity-60">
+              ※ 제공된 정보는 참고 자료입니다. 정확한 진단과 치료는 의사·약사와 상담하세요.
             </p>
           </div>
-        )
-      }
-    </div >
+        )}
+
+        {/* My Stack Tab */}
+        {activeTab === 'stack' && !showResult && (
+          <div className="animate-in space-y-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-2xl font-bold font-gaegu text-emerald-800">복용 스택 아카이브 📋</h2>
+              <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold">{savedStacks.length}개 보관 중</span>
+            </div>
+            
+            {savedStacks.length === 0 ? (
+              <div className="py-20 text-center bg-white rounded-[32px] border border-emerald-50 shadow-sm">
+                 <div className="text-6xl mb-4 opacity-10">🌿</div>
+                 <p className="text-slate-400 text-sm font-medium">아직 보관된 건강 기록이 없어요.<br/>홈에서 첫 분석을 시작해볼까요?</p>
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {savedStacks.map((s) => (
+                  <div key={s.id} onClick={() => viewSavedStack(s)} className="bg-white p-5 rounded-[32px] shadow-sm hover:border-emerald-200 border border-emerald-50 transition-all cursor-pointer group relative">
+                    <div className="flex justify-between items-start mb-2">
+                       <p className="text-[10px] font-bold text-emerald-300 mb-1">{s.date}</p>
+                       <button onClick={(e) => deleteStack(s.id, e)} className="w-6 h-6 flex items-center justify-center text-rose-200 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
+                    </div>
+                    <h4 className="font-bold text-slate-800 truncate mb-2">{s.drugList.join(', ')}</h4>
+                    <div className="flex gap-1">
+                      {s.videos && <span className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-100">영상 가이드</span>}
+                      {s.dietPlan && <span className="text-[9px] font-bold px-2 py-0.5 bg-rose-50 text-rose-600 rounded-full border border-rose-100">식단 포함</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(activeTab === 'map' || activeTab === 'report') && (
+           <div className="py-20 text-center opacity-30"><span className="text-6xl mb-4 block">🌳</span><p className="font-gaegu text-xl">더 풍성한 숲을 만들고 있어요</p></div>
+        )}
+      </main>
+
+      {/* Nav */}
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-emerald-50 flex justify-around p-3 pb-8 z-50 shadow-lg">
+        <button onClick={() => { setActiveTab('home'); setShowResult(false); }} className={`flex flex-col items-center gap-1 ${activeTab === 'home' && !showResult ? 'text-emerald-600 font-bold scale-110' : 'text-slate-300'}`}>
+          <span className="text-xl">🏠</span><span className="text-[10px]">홈</span>
+        </button>
+        <button onClick={() => { setActiveTab('stack'); setShowResult(false); }} className={`flex flex-col items-center gap-1 ${activeTab === 'stack' && !showResult ? 'text-emerald-600 font-bold scale-110' : 'text-slate-300'}`}>
+          <span className="text-xl">📋</span><span className="text-[10px]">내 스택</span>
+        </button>
+        <button onClick={() => setActiveTab('map')} className={`flex flex-col items-center gap-1 ${activeTab === 'map' ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}><span className="text-xl">📍</span><span className="text-[10px]">동네 약국</span></button>
+        <button onClick={() => setActiveTab('report')} className={`flex flex-col items-center gap-1 ${activeTab === 'report' ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}><span className="text-xl">📊</span><span className="text-[10px]">건강 리포트</span></button>
+      </nav>
+
+      {/* Analysis Overlay */}
+      {loading && (
+        <div className="absolute inset-0 bg-white/98 backdrop-blur-xl z-[100] flex flex-col items-center justify-center px-10 text-center">
+          <div className="relative w-24 h-24 mb-10">
+            <div className="absolute inset-0 border-4 border-emerald-50 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            <div className="absolute inset-0 flex items-center justify-center text-4xl">🌿</div>
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2 font-gaegu text-2xl">건강 정보를 살피고 있어요</h3>
+          <p className="text-emerald-600 font-gaegu text-2xl tracking-tight">{loadingStep}</p>
+        </div>
+      )}
+    </div>
   );
 };
 

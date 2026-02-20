@@ -4,6 +4,7 @@ E-utilities API를 사용하여 논문 검색 및 캐싱
 """
 import os
 import sys
+import json
 import hashlib
 import requests
 from typing import Optional
@@ -54,7 +55,63 @@ class PubMedService:
 
     async def translate_to_english(self, keyword_ko: str) -> str:
         """한글 의학/식재료 키워드를 영문(MeSH Term)으로 변환"""
-        # 0. Try Google Translation API (REST) - User Suggestion
+
+        # 0. 먼저 DB 캐시에서 찾기 (가장 빠름, 무료)
+        try:
+            from supabase import create_client
+            supabase = create_client(
+                os.getenv("SUPABASE_URL", ""),
+                os.getenv("SUPABASE_KEY", "")
+            )
+
+            result = supabase.table("drug_translation")\
+                .select("english_name")\
+                .eq("korean_name", keyword_ko)\
+                .execute()
+
+            if result.data and len(result.data) > 0:
+                translated = result.data[0]["english_name"]
+                print(f"[DB Cache Hit] {keyword_ko} -> {translated}")
+                return translated
+        except Exception as e:
+            print(f"[DB Translation Lookup Failed] {e}")
+
+        # 1. MyMemory Translation API (완전 무료!)
+        try:
+            import urllib.parse
+            import urllib.request
+
+            encoded_text = urllib.parse.quote(keyword_ko)
+            url = f"https://api.mymemory.translated.net/get?q={encoded_text}&langpair=ko|en"
+
+            with urllib.request.urlopen(url, timeout=5) as response:
+                data = json.loads(response.read().decode())
+                if data.get("responseStatus") == 200:
+                    translated = data["responseData"]["translatedText"]
+                    print(f"[MyMemory API] {keyword_ko} -> {translated}")
+
+                    # DB에 저장 (다음부터는 DB에서 가져옴)
+                    try:
+                        from supabase import create_client
+                        supabase = create_client(
+                            os.getenv("SUPABASE_URL", ""),
+                            os.getenv("SUPABASE_KEY", "")
+                        )
+                        supabase.table("drug_translation").insert({
+                            "korean_name": keyword_ko,
+                            "english_name": translated,
+                            "source": "mymemory",
+                            "verified": False
+                        }).execute()
+                        print(f"[DB Saved] {keyword_ko} -> {translated}")
+                    except Exception as save_error:
+                        print(f"[DB Save Failed] {save_error}")
+
+                    return translated
+        except Exception as e:
+            print(f"[MyMemory API Failed] {e}")
+
+        # 2. Google Translation API (기존 코드)
         if self.genai_key:
             try:
                 url = "https://translation.googleapis.com/language/translate/v2"
@@ -65,7 +122,6 @@ class PubMedService:
                     "format": "text",
                     "key": self.genai_key
                 }
-                # Using requests (sync) for simplicity, matching existing style
                 resp = requests.post(url, params=params, timeout=5)
                 if resp.status_code == 200:
                     data = resp.json()

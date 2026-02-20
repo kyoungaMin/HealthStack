@@ -5,6 +5,7 @@
 """
 import os
 import sys
+import json
 from typing import Optional
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
@@ -84,7 +85,14 @@ class AnalyzeService:
         if not drug_names or not ingredients:
             return []
 
-        ing_names = {i.modern_name for i in ingredients}
+        # Handle both dict and Ingredient object
+        ing_names = set()
+        for i in ingredients:
+            if isinstance(i, dict):
+                ing_names.add(i.get("modern_name", ""))
+            else:
+                ing_names.add(i.modern_name)
+
         db_hit = False
 
         try:
@@ -161,21 +169,54 @@ class AnalyzeService:
         증상 분석 핵심 로직
         """
         # ★ 신규: 0차 - 유사도 기반 캐시 조회 (매우 빠름, 0.1초)
+        # TEMPORARILY DISABLED FOR DEBUGGING
         cache_key = f"{symptom_text}|{','.join(current_meds or [])}"
-        cached_result = self.cache.get_with_similarity("ai_analysis", cache_key, threshold=0.80)
-        
+        cached_result = None  # self.cache.get_with_similarity("ai_analysis", cache_key, threshold=0.80)
+
         if cached_result:
             print(f"✅ [Cache] 유사도 캐시 히트! 캐시된 분석 결과 반환 (0.1초)")
             # 캐시된 결과를 AnalysisResult로 복원
             try:
+                # Convert dict to Ingredient objects
+                ingredients_list = []
+                for ing in cached_result.get("ingredients", []):
+                    if isinstance(ing, dict):
+                        ingredients_list.append(Ingredient(
+                            rep_code=ing.get("rep_code", ""),
+                            modern_name=ing.get("modern_name", ""),
+                            rationale_ko=ing.get("rationale_ko", ""),
+                            direction=ing.get("direction", "recommend"),
+                            priority=ing.get("priority", 100),
+                            evidence_level=ing.get("evidence_level", "")
+                        ))
+                    else:
+                        ingredients_list.append(ing)
+
+                # Convert dict to Recipe objects
+                recipes_list = []
+                for rec in cached_result.get("recipes", []):
+                    if isinstance(rec, dict):
+                        recipes_list.append(Recipe(
+                            id=rec.get("id", 0),
+                            title=rec.get("title", ""),
+                            description=rec.get("description", ""),
+                            meal_slot=rec.get("meal_slot", "anytime"),
+                            priority=rec.get("priority", 50),
+                            rationale_ko=rec.get("rationale_ko", ""),
+                            tags=rec.get("tags", [])
+                        ))
+                    else:
+                        recipes_list.append(rec)
+
                 return AnalysisResult(
                     symptom_summary=cached_result.get("symptom_summary"),
-                    ingredients=[Ingredient(**ing) for ing in cached_result.get("ingredients", [])],
-                    recipes=[Recipe(**rec) for rec in cached_result.get("recipes", [])],
+                    ingredients=ingredients_list,
+                    recipes=recipes_list,
                     confidence_level=cached_result.get("confidence_level", "general"),
                     source="cache_similarity",
                     matched_symptom_name=cached_result.get("matched_symptom_name"),
-                    cautions=cached_result.get("cautions", [])
+                    cautions=cached_result.get("cautions", []),
+                    related_questions=cached_result.get("related_questions", [])
                 )
             except Exception as e:
                 print(f"⚠️ 캐시 복원 오류: {e}, 일반 분석 진행")
@@ -338,11 +379,54 @@ class AnalyzeService:
         cache_key = f"ai_analysis:{symptom_text}:{','.join(sorted(current_meds or []))}"
         
         # ★ 캐시 확인 (TTL: 3일)
-        cached_result = self.cache.get("ai_analysis", cache_key, ttl_hours=72)
+        # TEMPORARILY DISABLED FOR DEBUGGING
+        cached_result = None  # self.cache.get("ai_analysis", cache_key, ttl_hours=72)
         if cached_result:
             print(f"[Cache HIT] Returning cached AI analysis result")
-            # 캐시된 dict를 AnalysisResult로 복원
-            return AnalysisResult(**cached_result)
+            # 캐시된 dict를 AnalysisResult로 복원 (ingredients와 recipes를 객체로 변환)
+            try:
+                ingredients_list = []
+                for ing in cached_result.get("ingredients", []):
+                    if isinstance(ing, dict):
+                        ingredients_list.append(Ingredient(
+                            rep_code=ing.get("rep_code", ""),
+                            modern_name=ing.get("modern_name", ""),
+                            rationale_ko=ing.get("rationale_ko", ""),
+                            direction=ing.get("direction", "recommend"),
+                            priority=ing.get("priority", 100),
+                            evidence_level=ing.get("evidence_level", "")
+                        ))
+                    else:
+                        ingredients_list.append(ing)
+
+                recipes_list = []
+                for rec in cached_result.get("recipes", []):
+                    if isinstance(rec, dict):
+                        recipes_list.append(Recipe(
+                            id=rec.get("id", 0),
+                            title=rec.get("title", ""),
+                            description=rec.get("description", ""),
+                            meal_slot=rec.get("meal_slot", "anytime"),
+                            priority=rec.get("priority", 50),
+                            rationale_ko=rec.get("rationale_ko", ""),
+                            tags=rec.get("tags", [])
+                        ))
+                    else:
+                        recipes_list.append(rec)
+
+                return AnalysisResult(
+                    symptom_summary=cached_result.get("symptom_summary"),
+                    ingredients=ingredients_list,
+                    recipes=recipes_list,
+                    confidence_level=cached_result.get("confidence_level", "general"),
+                    source=cached_result.get("source", "cache"),
+                    matched_symptom_id=cached_result.get("matched_symptom_id"),
+                    matched_symptom_name=cached_result.get("matched_symptom_name"),
+                    cautions=cached_result.get("cautions", []),
+                    related_questions=cached_result.get("related_questions", [])
+                )
+            except Exception as e:
+                print(f"[Cache ERROR] Failed to restore cached result: {e}, fetching fresh data")
         
         print(f"[Cache MISS] Fetching fresh AI analysis")
             
@@ -404,69 +488,36 @@ CRITICAL INSTRUCTION:
 """
         
         data = None
-        source = "ai_generated_gemini"
+        source = "ai_generated_openai"
 
-        # 2. Try Gemini (Primary)
+        # 2. Use OpenAI Directly (Gemini 할당량 없음으로 스킵)
         try:
-            api_key = os.getenv("API_KEY")
-            if not api_key:
-                raise ValueError("Google API Key not found")
+            import openai
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                raise ValueError("OpenAI API Key not found")
 
-            client = genai.Client(api_key=api_key)
-            
-            response = await client.aio.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt
+            client = openai.AsyncOpenAI(api_key=openai_key)
+
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a helpful Oriental Medicine expert. Respond in JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"}
             )
-            text_response = response.text.strip()
-            
-            # ★ 강화: 여러 형태의 마크로 제거 및 정제
-            if text_response.startswith('```'):
-                # 마크로 형태: ```json ... ``` 또는 ``` ... ```
-                text_response = text_response.split('```')[1]
-                if text_response.startswith('json'):
-                    text_response = text_response[4:]  # 'json' 제거
-                text_response = text_response.strip()
-            
-            # JSON 추출 (혹시 모를 추가 텍스트 포함 시)
-            if '{' in text_response and '}' in text_response:
-                start_idx = text_response.find('{')
-                end_idx = text_response.rfind('}') + 1
-                text_response = text_response[start_idx:end_idx]
-            
+
+            text_response = response.choices[0].message.content
             data = json.loads(text_response)
-            
-        except Exception as e_gemini:
-            print(f"Gemini Analysis Failed: {e_gemini}. Trying OpenAI fallback...")
-            
-            # 3. Try OpenAI (Fallback)
-            try:
-                import openai
-                openai_key = os.getenv("OPENAI_API_KEY")
-                if not openai_key:
-                    raise ValueError("OpenAI API Key not found for fallback")
-                
-                client = openai.AsyncOpenAI(api_key=openai_key)
-                
-                response = await client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful Oriental Medicine expert. Respond in JSON only."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    response_format={"type": "json_object"}
-                )
-                
-                text_response = response.choices[0].message.content
-                data = json.loads(text_response)
-                source = "ai_generated_openai"
-                
-            except Exception as e_openai:
-                print(f"OpenAI Fallback Failed: {e_openai}")
-                return AnalysisResult(
-                    symptom_summary="AI 분석 서비스 연결에 실패했습니다.",
-                    ingredients=[], recipes=[], confidence_level="none", source="error"
-                )
+            print(f"[OpenAI Analysis Success]")
+
+        except Exception as e_openai:
+            print(f"[OpenAI Analysis Failed] {e_openai}")
+            return AnalysisResult(
+                symptom_summary="AI 분석 서비스 연결에 실패했습니다.",
+                ingredients=[], recipes=[], confidence_level="none", source="error"
+            )
 
         # 4. Process Result
         if data is None: # This should ideally not happen if both try blocks are handled, but as a safeguard
@@ -526,17 +577,18 @@ CRITICAL INSTRUCTION:
         )
         
         # ★ 결과를 캐시에 저장 (TTL: 3일)
-        try:
-            from dataclasses import asdict
-            self.cache.set(
-                "ai_analysis",
-                cache_key,
-                asdict(result),
-                metadata={"source": source, "meds_count": len(current_meds or [])}
-            )
-            print(f"[Cache SAVED] AI analysis result cached")
-        except Exception as e:
-            print(f"[Cache ERROR] Failed to cache AI analysis: {e}")
+        # TEMPORARILY DISABLED - Causing dict serialization issues
+        # try:
+        #     from dataclasses import asdict
+        #     self.cache.set(
+        #         "ai_analysis",
+        #         cache_key,
+        #         asdict(result),
+        #         metadata={"source": source, "meds_count": len(current_meds or [])}
+        #     )
+        #     print(f"[Cache SAVED] AI analysis result cached")
+        # except Exception as e:
+        #     print(f"[Cache ERROR] Failed to cache AI analysis: {e}")
         
         return result
     

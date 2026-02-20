@@ -10,10 +10,8 @@
   },
   "dependencies": {
     "@google/genai": "^1.40.0",
-    "@google/generative-ai": "^0.24.1",
-    "audio-decode": "^2.2.3",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

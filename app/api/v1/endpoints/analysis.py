@@ -10,6 +10,7 @@ from app.schemas.analysis import (
 from app.services.analysis_step_service import StepByStepAnalysisService
 from app.services.prescription_service import PrescriptionService
 from app.services.pill_id_service import PillIdService
+from app.services.faq_service import FAQService
 
 router = APIRouter()
 
@@ -32,7 +33,8 @@ async def analyze_step1_extract(
     [Step 1] 증상/처방전 초기 인식 및 키워드 추출
     """
     try:
-        result = service.step1_extract(req.search_type, req.text, req.image_url)
+        import asyncio
+        result = await asyncio.to_thread(service.step1_extract, req.search_type, req.text, req.image_url)
         return Step1ExtractResponse(data=result)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -51,7 +53,8 @@ async def analyze_step2_search(
     try:
         # Pydantic schema expects dict structure matching response model
         # The service returns {"candidates": {...}}
-        result = service.step2_search(req.session_id, req.confirmed_keywords)
+        import asyncio
+        result = await asyncio.to_thread(service.step2_search, req.session_id, req.confirmed_keywords)
         return Step2SearchResponse(data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search Error: {str(e)}")
@@ -93,9 +96,76 @@ async def analyze_prescription(
     try:
         image_bytes = await file.read()
         result = await service.analyze_prescription_image(image_bytes, content_type)
+
+        # Debug: log result structure
+        import json
+        with open("result_debug.json", "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+        print(f"[DEBUG] Result saved to result_debug.json", flush=True)
+
         return PrescriptionAnalysisResponse(**result)
     except Exception as e:
+        import traceback
+        import sys
+
+        # Write detailed traceback to file for debugging
+        with open("error_log.txt", "w", encoding="utf-8") as f:
+            f.write(f"=== Prescription Analysis Error ===\n")
+            f.write(f"Error: {e}\n")
+            f.write(f"Error type: {type(e)}\n\n")
+            f.write("Full traceback:\n")
+            traceback.print_exc(file=f)
+
+        # Also print to console
+        traceback.print_exc()
+        print(f"[ERROR] Full error: {e}", file=sys.stderr, flush=True)
+        print(f"[ERROR] Error type: {type(e)}", file=sys.stderr, flush=True)
         raise HTTPException(status_code=500, detail=f"처방전 분석 오류: {str(e)}")
+
+
+@router.post("/diet-recommendation")
+async def get_diet_recommendation(
+    request: dict
+):
+    """
+    AI 맞춤 레시피 추천
+    """
+    try:
+        import os
+        from openai import AsyncOpenAI
+
+        food_names = request.get("foodNames", "")
+        drug_names = request.get("drugNames", "")
+
+        # OpenAI API 사용 (Gemini 할당량 초과 시 대체)
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            raise ValueError("OPENAI_API_KEY가 설정되지 않았습니다.")
+
+        client = AsyncOpenAI(api_key=openai_key)
+
+        prompt = f"""추천된 식재료({food_names})를 활용하여 지금 드시는 약({drug_names})과 충돌하지 않는 '오늘의 한 끼 건강 레시피'를 하나만 추천해줘.
+
+재료와 간단한 조리법, 그리고 왜 이 음식이 당신의 몸 상태에 좋은지 이유를 포함해줘.
+말투는 아주 다정하게."""
+
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "당신은 한방 영양학 전문가입니다. 친절하고 다정한 말투로 건강 레시피를 추천해주세요."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+
+        recommendation = response.choices[0].message.content
+
+        return {"recommendation": recommendation}
+
+    except Exception as e:
+        print(f"[Diet Recommendation Error] {e}")
+        raise HTTPException(status_code=500, detail=f"레시피 추천 오류: {str(e)}")
 
 
 @router.post("/pill-search/name", response_model=PillSearchResponse)
@@ -147,3 +217,16 @@ async def pill_search_by_appearance(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"낱알 외형 검색 오류: {str(e)}")
+
+
+@router.get("/faq")
+def get_faq_questions(category: str = None):
+    """
+    [골든 FAQ] 증상 카테고리별 추천 질문 목록 반환
+    ?category=소화/장 | 수면/스트레스 | 면역/호흡기 | 대사/만성 (없으면 전체)
+    """
+    svc = FAQService()
+    questions = svc.get_golden_questions()
+    if category:
+        questions = [q for q in questions if q.get("category") == category]
+    return {"total": len(questions), "questions": questions}

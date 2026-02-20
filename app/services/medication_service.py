@@ -140,66 +140,69 @@ class MedicationService:
         drug_name_en = await self.pubmed.translate_to_english(drug_name)
         print(f"[Translation] {drug_name} -> {drug_name_en}")
 
-        # 1. PubMed 검색 (Retriever) - 영문명으로 검색
-        papers = await self.pubmed.search_papers(f"{drug_name_en} mechanism side effects", max_results=2)
-        
+        # 1. PubMed 검색 (Retriever) - 영문명으로 검색 (최적화: max_results=1)
+        papers = await self.pubmed.search_papers(f"{drug_name_en} mechanism side effects", max_results=1)
+
         context = ""
         if papers:
             context = "\n\n".join([f"Paper: {p.title}\nAbstract: {p.abstract}" for p in papers])
-        
-        # 2. Gemini Generation (Generator)
+
+        # 2. OpenAI 직접 사용 (Gemini 할당량 없음으로 스킵)
         try:
-            if not genai:
-                raise ImportError("Google GenAI module is not available.")
-                
-            client = genai.Client(api_key=os.getenv("API_KEY"))
-            prompt = f"""
-            Role: 약사
-            Target: 환자
-            
-            Instruction: 아래 약물에 대해 분석하고, 제공된 의학 논문(PubMed) 내용을 참고하여(RAG), 환자에게 필요한 정보를 요약해 주세요.
-            
-            약물명: {drug_name}
-            
-            [관련 논문 초록]
-            {context}
-            
-            [응답 형식]
-            마크다운 형식을 사용하지 말고, 평문 텍스트로 깔끔하게.
-            1. 🟢 효능: (무엇을 치료하는 약인지)
-            2. ⚠️ 주의: (주요 부작용이나 주의사항)
-            3. 💡 팁: (복용 시 꿀팁)
-            
-            분량은 300자 이내로 핵심만.
-            """
-            
-            # 비동기 호출
-            response = await client.aio.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt
+            import openai
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                raise ValueError("OPENAI_API_KEY not found")
+
+            client = openai.AsyncOpenAI(api_key=openai_key)
+
+            prompt = f"""약물명: {drug_name}
+
+아래 의학 논문을 참고하여 환자에게 약물 정보를 설명해주세요.
+
+[관련 논문 초록]
+{context}
+
+[응답 형식]
+1. 🟢 효능: (무엇을 치료하는 약인지)
+2. ⚠️ 주의: (주요 부작용이나 주의사항)
+3. 💡 팁: (복용 시 꿀팁)
+
+300자 이내로 핵심만 작성해주세요."""
+
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 친절한 약사입니다. 환자에게 약물 정보를 쉽게 설명해주세요."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=500
             )
-            info_text = response.text
-            
+
+            info_text = response.choices[0].message.content
+
             result = {
                 "name": drug_name,
                 "info": info_text,
                 "papers": [{"title": p.title, "url": p.url} for p in papers]
             }
-            
-            # ★ 결과를 캐시에 저장
+
+            # 캐시에 저장
             self.cache.set(
                 "drug_info",
                 cache_key,
                 result,
-                metadata={"drug_name_en": drug_name_en, "paper_count": len(papers)}
+                metadata={"drug_name_en": drug_name_en, "paper_count": len(papers), "source": "openai"}
             )
-            
+
+            print(f"[OpenAI Direct Success] {drug_name}")
             return result
-            
-        except Exception as e:
-            print(f"[RAG Generation Error] {e}")
+
+        except Exception as openai_error:
+            print(f"[OpenAI Direct Failed] {openai_error}")
             return {
-                "name": drug_name, 
+                "name": drug_name,
                 "info": "정보를 불러오는 데 실패했습니다.",
                 "papers": []
             }
