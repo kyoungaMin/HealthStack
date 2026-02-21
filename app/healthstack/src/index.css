@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Custom styles from original index.html */
+body {
+    font-family: "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", sans-serif;
+    background-color: #fffdfa;
+    color: #334155;
+    letter-spacing: -0.015em;
+    line-height: 1.6;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.font-gaegu {
+    font-family: "Noto Sans KR", sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.health-card {
+    background: white;
+    border-radius: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    border: 1px solid #fef3c7;
+}
+
+.nav-active {
+    color: #059669;
+    font-weight: bold;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+    animation: fadeIn 0.4s ease-out forwards;
+}

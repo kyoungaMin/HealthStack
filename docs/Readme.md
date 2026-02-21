@@ -5,7 +5,7 @@ Supabase 기반 DB 설계, ERD, 아키텍처, API 기준 문서를 포함합니�
 
 > **서비스 정의**: 사용자가 입력한 증상과 처방전을 바탕으로, 약·건강정보·동의보감·음식·지역 식당·판매처를 하나의 맥락으로 연결해 "내 몸에 지금 필요한 선택지"를 설명해주는 서비스
 
-**최종 업데이트**: 2026-02-04
+**최종 업데이트**: 2026-02-22
 
 ---
 
@@ -54,8 +54,11 @@ docs/
 
 | 문서 | 설명 |
 |------|------|
-| [SERVICE_PLAN.md](./SERVICE_PLAN.md) | 서비스 정의, 입력 방식, 제공 정보 구조 |
+| [SERVICE_PLAN2.md](./SERVICE_PLAN2.md) | 서비스 기획 v3 (처방전 + 동네 약국 + 건강 리포트) |
 | [WORKFLOW.md](./WORKFLOW.md) | 사용자 플로우, 시스템 처리 흐름 |
+| [DEVLOG.md](./DEVLOG.md) | 개발 히스토리 (2026-02-02 ~ 현재) |
+| [개발일지_2026-02-20.md](./개발일지_2026-02-20.md) | 2026-02-20 작업 상세 |
+| [개발일지_2026-02-22.md](./개발일지_2026-02-22.md) | 2026-02-22 작업 상세 |
 
 ---
 
@@ -98,24 +101,58 @@ docs/
 
 | 문서 | 설명 |
 |------|------|
-| [api.md](./api.md) | API 엔드포인트 설계 (45개) |
+| [api.md](./api.md) | API 엔드포인트 설계 (52개) |
 
 **API 도메인 요약**:
 
-| 도메인 | 엔드포인트 | 주요 기능 |
-|--------|-----------|----------|
-| Auth/Profile | 3 | 프로필 조회/수정, 푸시 토큰 |
-| Intake Stack | 4 | 복용 항목 CRUD |
-| Schedules | 8 | 스케줄 CRUD, 복용 체크 |
-| Input Sessions | 6 | 증상/처방전 세션 관리 |
-| Interaction | 1 | 조합 분석 |
-| Symptom Content | 3 | 증상 기반 콘텐츠 |
-| Restaurant | 5 | 음식점 검색/즐겨찾기 |
-| PubMed RAG | 2 | 근거 검색 |
-| Reports | 2 | 리포트 생성/조회 |
-| Billing | 4 | 구독/결제 |
-| Catalog | 4 | 카탈로그 검색 |
-| Admin | 3 | 캐시/동기화 관리 |
+| 도메인 | 엔드포인트 | 주요 기능 | 상태 |
+|--------|-----------|----------|------|
+| Auth/Profile | 3 | 프로필 조회/수정, 푸시 토큰 | 설계 |
+| Intake Stack | 4 | 복용 항목 CRUD | 설계 |
+| Schedules | 8 | 스케줄 CRUD, 복용 체크 | 설계 |
+| Input Sessions | 6 | 증상/처방전 세션 관리 | 설계 |
+| Interaction | 1 | 조합 분석 | 설계 |
+| Symptom Content | 3 | 증상 기반 콘텐츠 | 설계 |
+| Restaurant | 5 | 음식점 검색/즐겨찾기 | 설계 |
+| PubMed RAG | 2 | 근거 검색 | 설계 |
+| Reports | 2 | 리포트 생성/조회 | 설계 |
+| Billing | 4 | 구독/결제 | 설계 |
+| Catalog | 4 | 카탈로그 검색 | 설계 |
+| Admin | 3 | 캐시/동기화 관리 | 설계 |
+| **Analyze (처방전)** | **6** | 처방전 OCR + 낱알 식별 | **구현 완료** |
+| **Pharmacy (약국)** | **1** | 주변 약국 검색 | **구현 완료** |
+
+---
+
+---
+
+## 🖥️ 현재 실행 환경 (2026-02-22)
+
+### 프론트엔드 (`app/healthstack/`)
+
+| 항목 | 내용 |
+|------|------|
+| 프레임워크 | Vite 7 + React 19 + TypeScript |
+| CSS | Tailwind v4 (`@import "tailwindcss"` via PostCSS) |
+| 맵 | Kakao Maps JS SDK |
+| AI | Google GenAI (`@google/genai`) — TTS |
+| 포트 | **3002** |
+
+**탭 구성**:
+```
+📋 처방전 분석  — OCR → 5섹션 리포트
+🏥 동네 약국   — Kakao 지도 + 네이버 지역검색 API
+📊 건강 리포트 — 처방 이력 집계 6섹션
+```
+
+### 백엔드 (`app/`)
+
+| 항목 | 내용 |
+|------|------|
+| 프레임워크 | FastAPI + Uvicorn |
+| 포트 | **8001** |
+| 주요 서비스 | `prescription_service.py`, `analyze_service.py`, `pharmacy_service.py` |
+| 스트리밍 | SSE (Server-Sent Events) |
 
 ---
 

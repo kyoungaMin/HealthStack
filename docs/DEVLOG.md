@@ -212,6 +212,36 @@ KOREA_DRUG_API_KEY=...               # 식약처 전체 (MFDS/DUR/낱알/유사�
 
 ---
 
+## 2026-02-22
+
+### 프론트엔드 버그 수정 및 기능 완성
+
+**Tailwind CSS 충돌 해결**
+- `index.html`에 Tailwind CDN v3 + v4 PostCSS가 동시 존재 → Hero 텍스트 전체 소멸
+- CDN v3 스크립트 제거로 해결 (v4는 CSS 변수 `oklch()` 기반, v3가 덮어씀)
+
+**Kakao Maps CustomOverlay onclick 오류 수정**
+- `overlay.getContent()` 반환값이 DOM 엘리먼트가 아닌 **원본 문자열** → `TypeError: Cannot create property 'onclick' on string`
+- `document.createElement('div')` 로 DOM 엘리먼트 직접 생성 → onclick 설정 후 `content:` 에 전달
+
+**Google GenAI 임포트 누락 수정**
+- `GoogleGenAI`, `Modality` 임포트 누락으로 AI TTS 버튼 동작 불가 → 임포트 추가
+
+**약국 영업시간 링크 추가**
+- Kakao Maps SDK / 네이버 API 모두 영업시간 데이터 미제공
+- `place_url` 필드 캡처 → "🕐 영업시간 확인" 링크로 Kakao Maps 상세 페이지 연결
+- 거리(`distance`) 뱃지 함께 표시
+
+**지도 탭 재진입 버그 수정**
+- 다른 탭 → 약국 탭 복귀 시 지도 DOM 언마운트·리마운트 → stale ref로 초기화 스킵
+- `naverMapRef.current = null` 강제 리셋 후 150ms delay로 재초기화
+
+**건강 리포트 탭 구현**
+- 6개 섹션: 한눈에 보기 / TOP 5 약물 / 타임라인 / 증상 패턴 / 자주 등장 식재료 / 레시피
+- 추가 state 없이 IIFE 패턴으로 처방 이력 인라인 집계
+
+---
+
 ## 현재 서비스 아키텍처
 
 ```

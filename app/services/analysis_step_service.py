@@ -1,7 +1,8 @@
 from typing import Dict, List, Optional, Any
 from .naver_ocr_service import NaverOCRService
-from .medication_service import MedicationService 
+from .medication_service import MedicationService
 from .analyze_service import AnalyzeService, AnalysisResult, Ingredient, Recipe # Import new service
+from .faq_service import FAQService
 
 class StepByStepAnalysisService:
     def __init__(self):
@@ -9,6 +10,7 @@ class StepByStepAnalysisService:
         self.ocr_service = NaverOCRService()
         self.analyze_service = AnalyzeService() # Reuse AnalyzeService
         
+        self.faq_service = FAQService()
         # In-memory storage for simple session management (Replace with Redis/DB in production)
         self._sessions: Dict[str, Dict[str, Any]] = {}
 
@@ -167,12 +169,22 @@ class StepByStepAnalysisService:
         avoid = []
         
         for ing in analysis_result.ingredients:
+            # Handle both dict and object types
+            if isinstance(ing, dict):
+                modern_name = ing.get("modern_name", "")
+                rationale_ko = ing.get("rationale_ko", "")
+                direction = ing.get("direction", "recommend")
+            else:
+                modern_name = ing.modern_name
+                rationale_ko = ing.rationale_ko
+                direction = ing.direction
+
             item = {
-                "name": ing.modern_name,
-                "reason": ing.rationale_ko,
+                "name": modern_name,
+                "reason": rationale_ko,
                 "tip": "함께 드시면 더욱 좋습니다." # Mock tip or from DB
             }
-            if ing.direction == "recommend" or ing.direction == "good":
+            if direction == "recommend" or direction == "good":
                 recommended.append(item)
             else:
                 avoid.append(item)
@@ -193,6 +205,22 @@ class StepByStepAnalysisService:
         elif "소화" in final_symptom_text:
             lifestyle_advice = "식사 후 30분 정도 가벼운 산책을 하는 것이 소화에 도움이 됩니다."
 
+        # FAQ: 증상 키워드에 맞는 연관 질문 추천 (최대 3개)
+        all_questions = self.faq_service.get_golden_questions()
+        keywords_lower = final_symptom_text.lower()
+        CATEGORY_KEYWORDS = {
+            "소화/장":   ["소화", "위", "장", "더부룩", "변비", "설사", "복부", "속"],
+            "수면/스트레스": ["수면", "잠", "스트레스", "두통", "피로", "불안", "멍"],
+            "면역/호흡기":  ["감기", "기침", "비염", "알레르기", "면역", "피부", "여드름"],
+            "대사/만성":   ["혈압", "혈당", "지방", "당뇨", "고지혈", "다이어트"],
+        }
+        matched_categories = [cat for cat, kws in CATEGORY_KEYWORDS.items()
+                               if any(kw in keywords_lower for kw in kws)]
+        if matched_categories:
+            related_questions = [q for q in all_questions if q["category"] in matched_categories][:3]
+        else:
+            related_questions = all_questions[:3]
+
         return {
             "summary": analysis_result.symptom_summary,
             "medication_guide": medication_guide,
@@ -201,5 +229,6 @@ class StepByStepAnalysisService:
                 "avoid": avoid
             },
             "lifestyle_advice": lifestyle_advice,
+            "related_questions": [{"question": q["q"], "answer": ""} for q in related_questions],
             "source": analysis_result.source
         }

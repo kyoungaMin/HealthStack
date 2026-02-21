@@ -456,7 +456,7 @@ Return ONLY valid JSON, starting with {{ and ending with }}.
 DO NOT include ```json or ``` markers.
 
 {{
-    "symptom_name": "Inferred Symptom Name",
+    "symptom_name": "추론된 증상명 (반드시 한글로)",
     "summary": "Brief explanation of the Inferred Symptom in Korean (polite tone, ~해요체)",
     "ingredients": [
         {{

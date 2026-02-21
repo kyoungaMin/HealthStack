@@ -1,118 +1,9 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import { createRoot } from 'react-dom/client';
-import { createClient, User } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL as string,
-  import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-  { auth: { flowType: 'implicit' } }
-);
-
-const BACKEND_URL = 'http://localhost:8001';
-
-// --- Types (SERVICE_PLAN2.md 기준) ---
-interface DrugDetail {
-  name: string;
-  efficacy: string;
-  sideEffects: string;
-}
-
-interface AcademicPaper {
-  title: string;
-  url: string;
-}
-
-interface DonguibogamFood {
-  name: string;
-  reason: string;
-  precaution: string;
-}
-
-interface TraditionalPrescription {
-  name: string;
-  source: string;
-  description: string;
-}
-
-interface TkmPaper {
-  title: string;
-  url: string;
-}
-
-interface AnalysisData {
-  prescriptionSummary: {
-    drugList: string[];
-    warnings: string;
-  };
-  drugDetails: DrugDetail[];
-  academicEvidence: {
-    summary: string;
-    trustLevel: string;
-    papers: AcademicPaper[];
-  };
-  lifestyleGuide: {
-    symptomTokens: string[];
-    advice: string;
-  };
-  donguibogam: {
-    foods: DonguibogamFood[];
-    donguiSection: string;
-    traditionalPrescriptions?: TraditionalPrescription[];
-    tkmPapers?: TkmPaper[];
-  };
-}
-
-interface SavedStack {
-  id: string;
-  date: string;
-  drugList: string[];
-  data: AnalysisData;
-  videos?: { title: string; uri: string }[];
-  dietPlan?: string;
-  selectedSections?: string[];
-}
-
-// --- Helpers ---
-const decode = (base64: string) => {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-};
-
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
-}
-
-const blobToBase64 = (blob: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = (reader.result as string).split(',')[1];
-      resolve(base64String);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-};
+import { User } from '@supabase/supabase-js';
+import { GoogleGenAI, Modality } from '@google/genai';
+import { supabase, BACKEND_URL } from './services/supabase';
+import { decode, decodeAudioData, blobToBase64 } from './utils/helpers';
+import type { AnalysisData, SavedStack } from './types';
 
 // --- App Component ---
 
@@ -1175,9 +1066,174 @@ const App = () => {
           </div>
         )}
 
-        {activeTab === 'report' && (
-           <div className="py-20 text-center opacity-30"><span className="text-6xl mb-4 block">🌳</span><p className="font-gaegu text-xl">더 풍성한 숲을 만들고 있어요</p></div>
-        )}
+        {activeTab === 'report' && (() => {
+          // --- 집계 연산 ---
+          const drugFreq: Record<string, number> = {};
+          savedStacks.forEach(s => s.drugList.forEach(d => { drugFreq[d] = (drugFreq[d] || 0) + 1; }));
+          const topDrugs = Object.entries(drugFreq).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+          const symptomFreq: Record<string, number> = {};
+          savedStacks.forEach(s => (s.data?.lifestyleGuide?.symptomTokens ?? []).forEach(t => {
+            symptomFreq[t] = (symptomFreq[t] || 0) + 1;
+          }));
+          const topSymptoms = Object.entries(symptomFreq).sort((a, b) => b[1] - a[1]).slice(0, 12);
+
+          const seenFoods = new Set<string>();
+          const uniqueFoods: { name: string; reason: string }[] = [];
+          savedStacks.forEach(s => (s.data?.donguibogam?.foods ?? []).forEach(f => {
+            if (!seenFoods.has(f.name)) { seenFoods.add(f.name); uniqueFoods.push(f); }
+          }));
+
+          const stacksWithDiet = savedStacks.filter(s => s.dietPlan);
+          const totalDrugTypes = Object.keys(drugFreq).length;
+
+          return savedStacks.length === 0 ? (
+            <div className="py-20 text-center">
+              <div className="text-6xl mb-4 opacity-20">📊</div>
+              <p className="text-slate-400 text-sm font-medium">처방전을 분석하면<br/>나만의 건강 리포트가 만들어져요</p>
+              <button onClick={() => setActiveTab('home')} className="mt-4 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full">홈에서 시작하기</button>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in pb-10">
+
+              {/* ── 섹션 1: 나의 건강 한눈에 ── */}
+              <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[32px] p-6 text-white shadow-lg">
+                <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-4">나의 건강 한눈에</p>
+                <div className="grid grid-cols-3 gap-2 text-center mb-4">
+                  <div className="bg-white/15 rounded-2xl p-3">
+                    <p className="text-2xl font-bold">{savedStacks.length}</p>
+                    <p className="text-[10px] opacity-80 mt-0.5">총 분석</p>
+                  </div>
+                  <div className="bg-white/15 rounded-2xl p-3">
+                    <p className="text-2xl font-bold">{totalDrugTypes}</p>
+                    <p className="text-[10px] opacity-80 mt-0.5">약물 종류</p>
+                  </div>
+                  <div className="bg-white/15 rounded-2xl p-3">
+                    <p className="text-2xl font-bold">{topSymptoms.length}</p>
+                    <p className="text-[10px] opacity-80 mt-0.5">확인 증상</p>
+                  </div>
+                </div>
+                <p className="text-[10px] opacity-60 text-center">최근 분석: {savedStacks[0]?.date}</p>
+              </div>
+
+              {/* ── 섹션 2: 자주 처방받은 약물 ── */}
+              {topDrugs.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">TOP</span>
+                    <h3 className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">자주 처방받은 약물</h3>
+                  </div>
+                  <div className="bg-white rounded-[24px] p-4 shadow-sm border border-blue-50 space-y-2">
+                    {topDrugs.map(([name, count], i) => (
+                      <div key={name} className="flex items-center gap-3">
+                        <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-center mb-1">
+                            <p className="text-xs font-bold text-slate-700 break-keep">{name}</p>
+                            <p className="text-[10px] text-blue-400 font-bold">{count}회</p>
+                          </div>
+                          <div className="w-full bg-blue-50 rounded-full h-1.5">
+                            <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${(count / savedStacks.length) * 100}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── 섹션 3: 복용 이력 타임라인 ── */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">이력</span>
+                  <h3 className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest">복용 이력 타임라인</h3>
+                </div>
+                <div className="relative pl-4">
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-emerald-100" />
+                  <div className="space-y-4">
+                    {savedStacks.map((s, i) => (
+                      <div key={s.id} className="relative pl-6">
+                        <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-emerald-400 bg-white" />
+                        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-emerald-50">
+                          <p className="text-[10px] text-emerald-400 font-bold mb-1">{s.date}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {s.drugList.slice(0, 4).map((d, j) => (
+                              <span key={j} className="text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold border border-emerald-100">{d}</span>
+                            ))}
+                            {s.drugList.length > 4 && (
+                              <span className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-400 rounded-lg">+{s.drugList.length - 4}개</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ── 섹션 4: 자주 나타나는 증상 ── */}
+              {topSymptoms.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">증상</span>
+                    <h3 className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">자주 나타나는 증상</h3>
+                  </div>
+                  <div className="bg-white rounded-[24px] p-4 shadow-sm border border-purple-50">
+                    <div className="flex flex-wrap gap-2">
+                      {topSymptoms.map(([token, count]) => (
+                        <span key={token} className="px-3 py-1.5 rounded-xl text-[11px] font-bold border"
+                          style={{ fontSize: `${Math.min(13, 10 + count)}px`, background: count > 1 ? '#f3f0ff' : '#fafaf9', color: count > 1 ? '#7c3aed' : '#78716c', borderColor: count > 1 ? '#ddd6fe' : '#e7e5e4' }}>
+                          {token} {count > 1 && <span className="opacity-60 text-[9px]">×{count}</span>}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── 섹션 5: 동의보감 식재료 모음 ── */}
+              {uniqueFoods.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">식재료</span>
+                    <h3 className="text-amber-700 text-[10px] font-bold uppercase tracking-widest">내 몸에 자주 필요한 식재료</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {uniqueFoods.slice(0, 6).map((f, i) => (
+                      <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-amber-50">
+                        <p className="text-lg mb-1">🌿</p>
+                        <p className="text-xs font-bold text-amber-900 break-keep">{f.name}</p>
+                        <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">{f.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── 섹션 6: AI 레시피 아카이브 ── */}
+              {stacksWithDiet.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">레시피</span>
+                    <h3 className="text-rose-400 text-[10px] font-bold uppercase tracking-widest">AI 레시피 아카이브</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {stacksWithDiet.map((s, i) => (
+                      <div key={s.id} className="bg-white rounded-[24px] p-4 shadow-sm border border-rose-50">
+                        <p className="text-[10px] text-rose-400 font-bold mb-2">{s.date}</p>
+                        <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3">{s.dietPlan}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10px] text-slate-400 text-center px-6 leading-relaxed opacity-60">
+                ※ 리포트는 기기에 저장된 분석 이력을 기반으로 합니다.
+              </p>
+            </div>
+          );
+        })()}
       </main>
 
       {/* Nav */}
@@ -1233,5 +1289,5 @@ const App = () => {
   );
 };
 
-const root = createRoot(document.getElementById('root')!);
-root.render(<App />);
+
+export default App;

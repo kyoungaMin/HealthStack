@@ -1154,9 +1154,52 @@ POST /api/v1/analyze/pill-search/appearance
 
 ---
 
+## 6-D. 동네 약국 검색 (Pharmacy Nearby)
+
+> Base URL: `/api/v1/pharmacies`
+> **구현 완료** (2026-02-22)
+> 데이터: 네이버 지역 검색 API (`/v1/search/local.json`)
+
+### 주변 약국 검색
+
+```http
+GET /api/v1/pharmacies/nearby
+```
+
+**Query Parameters**:
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|----------|------|------|--------|------|
+| `lat` | float | ✅ | — | 위도 (latitude) |
+| `lng` | float | ✅ | — | 경도 (longitude) |
+| `radius` | int | — | 2000 | 검색 반경 (미터) |
+
+**Response**:
+```json
+{
+  "total": 12,
+  "items": [
+    {
+      "name": "강남약국",
+      "address": "서울특별시 강남구 역삼동 123",
+      "phone": "02-1234-5678",
+      "lat": 37.4985,
+      "lng": 127.0273,
+      "link": "https://map.kakao.com/link/map/...",
+      "category": "약국"
+    }
+  ]
+}
+```
+
+**서비스 파일**: `app/services/pharmacy_service.py`
+**라우터 파일**: `app/api/v1/endpoints/pharmacy.py`
+**프론트엔드**: Kakao Maps JS SDK로 마커 표시, `place_url` 링크로 영업시간 확인
+
+---
+
 ## 📊 API 요약표
 
-> **최종 업데이트**: 2026-02-20
+> **최종 업데이트**: 2026-02-22
 
 ### 구현 완료 (FastAPI — `app/`)
 
@@ -1168,6 +1211,7 @@ POST /api/v1/analyze/pill-search/appearance
 | `/api/v1/analyze/step3-report` | POST | 최종 리포트 생성 | — |
 | `/api/v1/analyze/pill-search/name` | POST | 약품명으로 낱알 외형 조회 | A |
 | `/api/v1/analyze/pill-search/appearance` | POST | 외형으로 약 식별 | A |
+| `/api/v1/pharmacies/nearby` | GET | 현재 위치 주변 약국 검색 | — |
 
 ### 설계 명세 (docs/api.md — 구현 예정)
 
@@ -1186,7 +1230,8 @@ POST /api/v1/analyze/pill-search/appearance
 | Catalog | 4 | 카탈로그 검색 |
 | Admin | 3 | 캐시/동기화 관리 |
 | **구현 완료 (Analyze)** | **6** | **처방전 분석 + 낱알 식별** |
-| **총계** | **51** | |
+| **구현 완료 (Pharmacy)** | **1** | **주변 약국 검색** |
+| **총계** | **52** | |
 
 ---
 

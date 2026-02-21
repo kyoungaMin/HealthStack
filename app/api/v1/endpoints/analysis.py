@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from typing import List
+import json
 from app.schemas.analysis import (
     Step1ExtractRequest, Step1ExtractResponse,
     Step2SearchRequest, Step2SearchResponse,
@@ -11,6 +13,7 @@ from app.services.analysis_step_service import StepByStepAnalysisService
 from app.services.prescription_service import PrescriptionService
 from app.services.pill_id_service import PillIdService
 from app.services.faq_service import FAQService
+from app.services.naver_search_service import NaverSearchService
 
 router = APIRouter()
 
@@ -23,6 +26,9 @@ def get_prescription_service():
 
 def get_pill_id_service():
     return PillIdService()
+
+def get_naver_search_service():
+    return NaverSearchService()
 
 @router.post("/step1-extract", response_model=Step1ExtractResponse)
 async def analyze_step1_extract(
@@ -78,49 +84,113 @@ async def analyze_step3_report(
         raise HTTPException(status_code=500, detail=f"Report Generation Error: {str(e)}")
 
 
-@router.post("/prescription", response_model=PrescriptionAnalysisResponse)
-async def analyze_prescription(
+# 📌 중요: 구체적인 경로를 먼저 정의해야 FastAPI가 올바르게 라우팅합니다!
+# 순서: /prescription/stream → /prescription/sections → /prescription
+
+@router.post("/prescription-stream")
+async def analyze_prescription_stream(
     file: UploadFile = File(..., description="처방전 이미지 파일 (jpg/png)"),
-    service: PrescriptionService = Depends(get_prescription_service)
+    sections: str = Form("1,2", description="분석할 섹션 번호 (예: '1,2' 또는 '1,2,3,4,5')"),
+    service: PrescriptionService = Depends(get_prescription_service),
 ):
     """
-    [처방전 통합 분석]
-    이미지 업로드 → OCR(Gemini) → PubMed 근거 → 동의보감 매핑 → 5섹션 리포트 반환
+    [처방전 스트리밍 분석] SSE(Server-Sent Events) 방식으로 진행 상황을 실시간 전송.
+    - sections="1,2"       → OCR + 약물정보만 (빠름)
+    - sections="1,2,3,4,5" → 전체 분석 (학술근거·생활가이드·동의보감 포함)
     """
-    # 이미지 타입 검증
     allowed_types = {"image/jpeg", "image/png", "image/jpg", "image/webp"}
     content_type = file.content_type or "image/jpeg"
     if content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식입니다: {content_type}")
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식: {content_type}")
 
+    image_bytes = await file.read()
+    selected_sections = set(sections.split(","))
+
+    async def event_generator():
+        try:
+            async for event in service.analyze_prescription_streaming(
+                image_bytes, content_type, selected_sections
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.post("/prescription/sections")
+async def fetch_prescription_sections(
+    request: dict,
+    service: PrescriptionService = Depends(get_prescription_service),
+):
+    """
+    [결과 화면 on-demand 섹션 분석]
+    처음 분석 후 사용자가 개별 선택한 섹션(4·생활가이드, 5·동의보감)을 추가로 실행.
+    request: { "drug_list": ["약물1", ...], "sections": ["4"] }
+    """
+    drug_list: list = request.get("drug_list", [])
+    sections: set = set(request.get("sections", []))
+    if not sections:
+        raise HTTPException(status_code=400, detail="sections 필드가 비어있습니다.")
     try:
-        image_bytes = await file.read()
-        result = await service.analyze_prescription_image(image_bytes, content_type)
-
-        # Debug: log result structure
-        import json
-        with open("result_debug.json", "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False, default=str)
-        print(f"[DEBUG] Result saved to result_debug.json", flush=True)
-
-        return PrescriptionAnalysisResponse(**result)
+        result = await service.fetch_optional_sections(drug_list, sections)
+        return result
     except Exception as e:
         import traceback
-        import sys
-
-        # Write detailed traceback to file for debugging
-        with open("error_log.txt", "w", encoding="utf-8") as f:
-            f.write(f"=== Prescription Analysis Error ===\n")
-            f.write(f"Error: {e}\n")
-            f.write(f"Error type: {type(e)}\n\n")
-            f.write("Full traceback:\n")
-            traceback.print_exc(file=f)
-
-        # Also print to console
         traceback.print_exc()
-        print(f"[ERROR] Full error: {e}", file=sys.stderr, flush=True)
-        print(f"[ERROR] Error type: {type(e)}", file=sys.stderr, flush=True)
-        raise HTTPException(status_code=500, detail=f"처방전 분석 오류: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"섹션 분석 오류: {str(e)}")
+
+
+@router.post("/prescription")
+async def analyze_prescription(
+    file: UploadFile = File(..., description="처방전 이미지 파일 (jpg/png)"),
+    sections: str = Form("1,2", description="분석할 섹션 번호 (예: '1,2' 또는 '1,2,3,4,5')"),
+    service: PrescriptionService = Depends(get_prescription_service),
+):
+    """
+    [처방전 SSE 스트리밍] 실시간 진행 상황 전송
+    - sections="1,2"       → OCR + 약물정보만 (빠름)
+    - sections="1,2,3,4,5" → 전체 분석
+    """
+    print("[DEBUG] Prescription streaming endpoint called")  # Force reload
+    allowed_types = {"image/jpeg", "image/png", "image/jpg", "image/webp"}
+    content_type = file.content_type or "image/jpeg"
+    if content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"지원하지 않는 파일 형식: {content_type}")
+
+    image_bytes = await file.read()
+    selected_sections = set(sections.split(","))
+
+    async def event_generator():
+        try:
+            async for event in service.analyze_prescription_streaming(
+                image_bytes, content_type, selected_sections
+            ):
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/diet-recommendation")
@@ -230,3 +300,30 @@ def get_faq_questions(category: str = None):
     if category:
         questions = [q for q in questions if q.get("category") == category]
     return {"total": len(questions), "questions": questions}
+
+
+@router.get("/pharmacy/nearby")
+async def search_nearby_pharmacies(
+    lat: float,
+    lng: float,
+    radius: int = 1000,
+    display: int = 5,
+    service: NaverSearchService = Depends(get_naver_search_service),
+):
+    """
+    [주변 약국 검색] 네이버 지역 검색 API를 사용하여 주변 약국 검색
+    - lat: 위도
+    - lng: 경도
+    - radius: 검색 반경 (미터, 기본 1km)
+    - display: 검색 결과 개수 (기본 5개)
+    """
+    try:
+        pharmacies = await service.search_nearby_pharmacies(lat, lng, radius, display)
+        return {
+            "total": len(pharmacies),
+            "pharmacies": pharmacies
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"약국 검색 오류: {str(e)}")

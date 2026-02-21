@@ -1,4 +1,4 @@
-Project health_stack {
+﻿Project health_stack {
   database_type: "PostgreSQL"
   Note: "Supabase DB schema for Health Stack service (documented ERD)"
 }
@@ -746,5 +746,48 @@ Table ingredient_pubmed_map {
     // 실제 DB는 (rep_code, ingredient_name_en, coalesce(bioactive_compound,'')) expression unique index.
     // DBML은 표현식 인덱스 제약이 있어 "논리적 유니크"로 문서화.
     (rep_code, ingredient_name_en, bioactive_compound) [unique, name: "uq_ingredient_pubmed_map_rep_ing_compound"]
+  }
+}
+
+// =========================
+// Traditional Foods (Donguibogam)
+// =========================
+
+Table traditional_foods {
+  id bigint [pk, increment]
+  rep_code text
+  rep_name text
+  trad_code text
+  trad_name text
+  disease text
+  disease_read text
+  disease_alias text
+  disease_alias_read text
+  modern_disease text
+  disease_src text
+  disease_src_read text
+  disease_src_year text
+  disease_src_section text
+  disease_content text
+  prescription text
+  prescription_read text
+  prescription_modern text
+  prescription_alias text
+  presc_src text
+  presc_src_read text
+  presc_src_year text
+  presc_src_section text
+  indication text
+  etc text
+  food_type text
+  ingredients text
+  preparation text
+  dosage text
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    (rep_code) [name: "idx_tf_rep_code"]
+    (trad_code) [name: "idx_tf_trad_code"]
+    (disease) [name: "idx_tf_disease"]
   }
 }
