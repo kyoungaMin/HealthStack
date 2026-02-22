@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import analysis
+from app.api.v1.endpoints import analysis, pharmacy
 
 app = FastAPI(
     title="HealthStack API",
@@ -27,6 +27,7 @@ app.add_middleware(
 
 # Router 등록
 app.include_router(analysis.router, prefix="/api/v1/analyze", tags=["Analysis"])
+app.include_router(pharmacy.router, prefix="/api/v1/pharmacy", tags=["Pharmacy"])
 
 @app.get("/")
 def root():

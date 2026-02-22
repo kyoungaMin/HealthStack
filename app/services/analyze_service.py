@@ -242,14 +242,15 @@ class AnalyzeService:
             if current_meds:
                 cautions = self._check_interactions(current_meds, ingredients)
 
+            matched_name = matched.get('modern_name_ko') or matched.get('disease_read') or symptom_text
             return AnalysisResult(
-                symptom_summary=f"{matched.get('modern_name_ko', matched.get('disease_read', ''))} 관련 증상입니다.",
+                symptom_summary=f"{matched_name} 관련 증상입니다.",
                 ingredients=ingredients,
                 recipes=recipes,
                 confidence_level="high",
                 source="database",
                 matched_symptom_id=matched["id"],
-                matched_symptom_name=matched.get("modern_name_ko"),
+                matched_symptom_name=matched_name,
                 cautions=cautions
             )
         
@@ -274,14 +275,15 @@ class AnalyzeService:
             if current_meds:
                 cautions = self._check_interactions(current_meds, ingredients)
 
+            similar_name = similar.get('modern_name_ko') or similar.get('disease_read') or symptom_text
             return AnalysisResult(
-                symptom_summary=f"'{similar.get('modern_name_ko', '')}' 증상과 유사합니다.",
+                symptom_summary=f"'{similar_name}' 증상과 유사합니다.",
                 ingredients=ingredients,
                 recipes=recipes,
                 confidence_level="medium",
                 source="similarity",
                 matched_symptom_id=similar["id"],
-                matched_symptom_name=similar.get("modern_name_ko"),
+                matched_symptom_name=similar_name,
                 cautions=cautions
             )
         

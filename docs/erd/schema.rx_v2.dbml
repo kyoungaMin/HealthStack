@@ -1,0 +1,901 @@
+Project health_stack {
+  database_type: "PostgreSQL"
+  Note: "Supabase DB schema for Health Stack service (documented ERD)"
+}
+
+Table auth_users {
+  id uuid [pk]
+}
+
+Table user_profiles {
+  user_id uuid [pk, ref: > auth_users.id]
+  display_name text
+  locale text
+  timezone text
+  wake_time time
+  breakfast_time time
+  lunch_time time
+  dinner_time time
+  bed_time time
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table user_preferences {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  preferred_categories text[]
+  excluded_ingredients text[]
+  health_conditions jsonb
+  notification_enabled boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table foods_master {
+  rep_code text [pk]
+  rep_name text [note: "동의보감 식재료명 (예: 大棗)"]
+  modern_name text [note: "현대 한글명 (예: 대추)"]
+  name_en text [note: "영문명 (예: Jujube)"]
+  aliases text[] [note: "동의어/별칭 배열"]
+  category text [note: "분류 (과일/채소/곡물/약재/해산물/육류)"]
+  nutrients jsonb [note: "주요 영양소 정보"]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table disease_master {
+  id bigint [pk]
+  disease text [unique, note: "동의보감 증상 (예: 不眠)"]
+  disease_read text [note: "한글 독음"]
+  disease_alias text
+  disease_alias_read text
+  modern_disease text [note: "현대 질병명 (legacy)"]
+  modern_name_ko text [note: "현대 한글명 (명확한 현대어)"]
+  name_en text [note: "영문 질병명"]
+  icd10_code text [note: "ICD-10 코드"]
+  category text [note: "분류 (수면/소화/피로/호흡/순환/피부/정신/통증)"]
+  aliases text[] [note: "동의어/별칭 배열"]
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table catalog_drugs {
+  id bigint [pk]
+  name text
+  generic_name text
+  atc_code text
+  source text
+  updated_at timestamptz
+}
+
+
+// =========================
+// Rx-Centric v2 (Prescription -> Drug Evidence -> Symptom Tokens -> Donguibogam)
+// =========================
+
+Table drug_synonyms {
+  id bigint [pk, increment]
+  drug_id bigint [not null, ref: > catalog_drugs.id]
+  synonym_text text [not null]
+  lang text [note: "ko | en | etc"]
+  source text [note: "rx_label | mfds | user | import"]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (drug_id)
+    (synonym_text)
+    (drug_id, synonym_text) [unique]
+  }
+}
+
+Table drug_label_sources {
+  id bigint [pk, increment]
+  drug_id bigint [not null, ref: > catalog_drugs.id]
+  source_name text [not null, note: "mfds"]
+  source_url text
+  efficacy_text text
+  dosage_text text
+  warnings_text text
+  adverse_events_text text
+  contraindications_text text
+  raw_json jsonb
+  trust_level text [note: "A"]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (drug_id)
+    (source_name)
+    (drug_id, source_name) [unique]
+  }
+}
+
+Table drug_pubmed_links {
+  id bigint [pk, increment]
+  drug_id bigint [not null, ref: > catalog_drugs.id]
+  pmid text [not null, ref: > pubmed_papers.pmid]
+  link_type text [not null, note: "efficacy | adverse | mechanism | guideline | general"]
+  note text
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (drug_id)
+    (pmid)
+    (drug_id, pmid) [unique]
+  }
+}
+
+Table symptom_tokens {
+  token text [pk, note: "canonical token (e.g., dizziness, diarrhea)"]
+  label_ko text
+  label_en text
+  category text [note: "neurologic | gi | sleep | skin | cardiovascular | etc"]
+  aliases text[] [default: `'{}'::text[]`]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table drug_symptom_tokens {
+  id bigint [pk, increment]
+  drug_id bigint [not null, ref: > catalog_drugs.id]
+  token text [not null, ref: > symptom_tokens.token]
+  token_type text [not null, note: "efficacy | adverse"]
+  severity_hint text [note: "mild | moderate | severe | unknown"]
+  evidence_level text [note: "label | clinical | empirical | theoretical"]
+  source_ref text [note: "mfds | pubmed:PMID | search"]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (drug_id)
+    (token)
+    (drug_id, token_type)
+    (drug_id, token, token_type) [unique]
+  }
+}
+
+Table token_tkm_map {
+  id bigint [pk, increment]
+  token text [not null, ref: > symptom_tokens.token]
+  tkm_symptom_id bigint [not null, ref: > tkm_symptom_master.id]
+  mapping_strength text [not null, note: "high | medium | low"]
+  mapping_type text [not null, note: "equivalent | overlap | differential | context"]
+  evidence_note text
+  reviewer text
+  reviewed_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (token, tkm_symptom_id) [unique]
+    (token)
+    (tkm_symptom_id)
+  }
+}
+
+Table search_fallback_sources {
+  id bigint [pk, increment]
+  entity_type text [not null, note: "drug | token | food | recipe"]
+  entity_id text [not null, note: "catalog_drugs.id | symptom_tokens.token | foods_master.rep_code | recipes.id"]
+  provider text [note: "serpapi | google | naver | bing | etc"]
+  url text [not null]
+  domain text
+  title text
+  snippet text
+  summary text
+  trust_level text [note: "A | B | C"]
+  retrieved_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (entity_type, entity_id)
+    (domain)
+    (trust_level)
+  }
+}
+
+
+Table catalog_supplements {
+  id bigint [pk]
+  name text
+  ingredient text
+  category text
+  updated_at timestamptz
+}
+
+Table user_intake_items {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  item_type text
+  catalog_drug_id bigint [ref: > catalog_drugs.id]
+  catalog_supplement_id bigint [ref: > catalog_supplements.id]
+  rep_code text [ref: > foods_master.rep_code]
+  display_name text
+  dose_text text
+  route text
+  active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table intake_schedules {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  intake_item_id bigint [ref: > user_intake_items.id]
+  pattern text
+  days_of_week int[]
+  time_anchor text
+  custom_time time
+  offset_minutes int
+  rules jsonb
+  is_enabled boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table intake_logs {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  schedule_id bigint [ref: > intake_schedules.id]
+  scheduled_at timestamptz
+  taken_at timestamptz
+  status text
+  note text
+  created_at timestamptz
+}
+
+Table user_push_tokens {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  platform text
+  token text
+  enabled boolean
+  last_seen_at timestamptz
+  created_at timestamptz
+}
+
+Table reports {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  report_type text
+  title text
+  inputs jsonb
+  content_md text
+  pdf_path text
+  status text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table symptom_ingredient_map {
+  id bigint [pk, increment]
+  symptom_id bigint [ref: > disease_master.id]
+  rep_code text [ref: > foods_master.rep_code]
+  direction text [note: "recommend | good | neutral | caution | avoid"]
+  rationale_ko text
+  rationale_en text
+  priority int [note: "1-100"]
+  source_ref text
+  evidence_level text [note: "traditional | clinical | empirical | theoretical"]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (symptom_id)
+    (rep_code)
+    (direction)
+    (priority)
+    (symptom_id, rep_code) [unique]
+  }
+}
+
+Table recipes {
+  id bigint [pk, increment]
+  title text
+  description text
+  ingredients jsonb [note: "재료 목록"]
+  steps jsonb [note: "조리 단계"]
+  prep_time_min int
+  cook_time_min int
+  servings int
+  difficulty text [note: "easy | medium | hard"]
+  tags text[]
+  meal_type text[] [note: "breakfast | lunch | dinner | snack | tea"]
+  nature text [note: "성질 (온/평/량/한)"]
+  flavor text[] [note: "맛 (산/고/감/신/함)"]
+  target_organs text[] [note: "귀경 (심/간/비/폐/신)"]
+  source_ref text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (tags) [note: "GIN"]
+    (meal_type) [note: "GIN"]
+    (title)
+  }
+}
+
+Table symptom_recipe_map {
+  id bigint [pk, increment]
+  symptom_id bigint [ref: > disease_master.id]
+  recipe_id bigint [ref: > recipes.id]
+  meal_slot text [note: "breakfast | lunch | dinner | snack | tea | anytime"]
+  priority int
+  rationale_ko text
+  best_time text
+  frequency text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (symptom_id)
+    (recipe_id)
+    (meal_slot)
+    (symptom_id, recipe_id) [unique]
+  }
+}
+
+// ... existing tables ...
+
+// =========================
+// PubMed & MeSH Mapping
+// =========================
+
+
+Table symptom_pubmed_map {
+  id bigint [pk, increment]
+  symptom_id bigint [ref: > disease_master.id]
+  keyword_en text
+  mesh_term text
+  search_role text [note: "primary | secondary | context"]
+  priority int
+  note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (symptom_id)
+    (symptom_id, keyword_en) [unique]
+  }
+}
+
+Table ingredient_pubmed_map {
+  id bigint [pk, increment]
+  rep_code text [ref: > foods_master.rep_code]
+  ingredient_name_en text
+  mesh_term text
+  bioactive_compound text
+  compound_mesh text
+  search_role text [note: "primary | compound | support"]
+  priority int
+  note text
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (rep_code)
+    (rep_code, ingredient_name_en, bioactive_compound) [unique]
+  }
+}
+
+Table content_videos {
+  id bigint [pk]
+  provider text
+  video_id text
+  title text
+  channel text
+  tags text[]
+  created_at timestamptz
+}
+
+Table symptom_video_map {
+  id bigint [pk]
+  symptom_id bigint [ref: > disease_master.id]
+  video_pk bigint [ref: > content_videos.id]
+  priority int
+}
+
+Table ingredient_product_links {
+  id bigint [pk]
+  rep_code text [ref: > foods_master.rep_code]
+  provider text
+  query_template text
+  disclaimer_ko text
+  created_at timestamptz
+}
+
+Table interaction_facts {
+  id bigint [pk]
+  a_type text
+  a_ref text
+  b_type text
+  b_ref text
+  severity text
+  evidence_level text
+  mechanism text
+  summary_ko text
+  action_ko text
+  sources jsonb
+  pmids text[]
+  updated_at timestamptz
+}
+
+Table pubmed_papers {
+  pmid text [pk]
+  title text
+  abstract text
+  journal text
+  pub_year int
+  publication_types text[]
+  mesh_terms text[]
+  url text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table pubmed_embeddings {
+  pmid text [ref: > pubmed_papers.pmid]
+  chunk_index int
+  content text
+  embedding vector
+  created_at timestamptz
+
+  indexes {
+    (pmid, chunk_index) [pk]
+  }
+}
+
+Table plans {
+  id bigint [pk]
+  code text
+  name text
+  price int
+  currency text
+  features jsonb
+  is_active boolean
+}
+
+Table subscriptions {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  plan_code text [ref: > plans.code]
+  status text
+  current_period_start timestamptz
+  current_period_end timestamptz
+  provider text
+  provider_sub_id text
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table payments {
+  id bigint [pk]
+  user_id uuid [ref: > auth_users.id]
+  amount int
+  currency text
+  provider text
+  provider_payment_id text
+  payment_type text
+  reference_id bigint
+  status text
+  created_at timestamptz
+}
+
+
+// ===== Health Stack 통합기획안 확장 (입력 세션 + 처방전 + 식당/카탈로그) =====
+
+// --- 1) 입력(증상/처방전/혼합) 세션 레이어 ---
+
+Table user_input_sessions {
+  id bigint [pk, increment]
+  user_id uuid [ref: > auth_users.id]
+  input_type text [note: "symptom | prescription | combined"]
+  input_summary text
+  created_at timestamptz
+}
+
+Table user_symptoms {
+  id bigint [pk, increment]
+  user_id uuid [ref: > auth_users.id]
+  session_id bigint [ref: > user_input_sessions.id]
+  symptom_id bigint [ref: > disease_master.id]
+  symptom_text text
+  created_at timestamptz
+}
+
+Table user_prescriptions {
+  id bigint [pk, increment]
+  user_id uuid [ref: > auth_users.id]
+  session_id bigint [ref: > user_input_sessions.id]
+  prescription_image_url text
+  prescribed_at date
+  created_at timestamptz
+}
+
+Table user_prescription_drugs {
+  id bigint [pk, increment]
+  prescription_id bigint [ref: > user_prescriptions.id]
+  drug_name text
+  drug_entity_id bigint [ref: > catalog_drugs.id, note: \"normalized drug entity\"]
+  dosage text
+  frequency text
+  duration text
+  created_at timestamptz
+}
+
+Table session_recommendation_results {
+  id bigint [pk, increment]
+  session_id bigint [ref: > user_input_sessions.id]
+  result_type text [note: "ingredient | video | restaurant | product | paper | recipe"]
+  ref_table text [note: "foods_master | content_videos | restaurants | products | pubmed_papers | recipes 등"]
+  ref_id text [note: "외부/내부 PK 혼용 가능(초기). 확장 시 ref_table별 FK 테이블로 분리 권장"]
+  reason text
+  created_at timestamptz
+}
+
+// --- 2) 지역 음식점 추천 레이어 (지도 API 기반) ---
+// ※ DB_ARCHITECTURE_RESTAURANT_CATALOG.md 설계안 반영
+
+Table restaurants {
+  id bigint [pk, increment]
+  provider text [note: "kakao | naver | google"]
+  external_id text
+  name text
+  category text
+  address_full text
+  address_road text
+  address_region text
+  latitude decimal
+  longitude decimal
+  rating_avg decimal
+  review_count int
+  phone text
+  website_url text
+  is_open boolean
+  raw_json json
+  last_synced_at timestamptz
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (provider, external_id) [unique]
+    (address_region)
+    (latitude, longitude)
+    (rating_avg, review_count)
+  }
+}
+
+Table restaurant_menus {
+  id bigint [pk, increment]
+  restaurant_id bigint [ref: > restaurants.id]
+  menu_name text
+  menu_category text
+  price int
+  currency text
+  rep_codes text [note: "foods_master.rep_code 배열(초기엔 text로 저장). Postgres에서는 text[] 권장"]
+  description text
+  is_signature boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table restaurant_search_templates {
+  id bigint [pk, increment]
+  rep_code text [ref: > foods_master.rep_code]
+  provider text [note: "kakao | naver | google | all"]
+  query_template text [note: "예: {{rep_name}} 요리 / {{rep_name}}차"]
+  category_filter text [note: "text[] 권장"]
+  disclaimer_ko text
+  priority int
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (rep_code)
+    (rep_code, provider, query_template) [unique]
+  }
+}
+
+Table restaurant_search_requests {
+  id bigint [pk, increment]
+  request_hash text [unique, note: "MD5(provider+query+lat+lng+radius+filters)"]
+  provider text
+  query text
+  latitude decimal
+  longitude decimal
+  radius_meters int
+  category_filter text [note: "text[] 권장"]
+  sort_by text [note: "distance | rating | review_count | relevance"]
+  result_count int
+  total_available int
+  expires_at timestamptz
+  cache_hit_count int
+  api_quota_used int
+  created_at timestamptz
+  last_accessed_at timestamptz
+}
+
+Table restaurant_search_results {
+  id bigint [pk, increment]
+  search_request_id bigint [ref: > restaurant_search_requests.id]
+  restaurant_id bigint [ref: > restaurants.id]
+  rank_position int
+  distance_meters int
+  relevance_score decimal
+  matched_keywords text [note: "text[] 권장"]
+  matched_rep_codes text [note: "text[] 권장"]
+  created_at timestamptz
+
+  indexes {
+    (search_request_id, rank_position)
+    (search_request_id, restaurant_id) [unique]
+  }
+}
+
+Table user_restaurant_favorites {
+  id bigint [pk, increment]
+  user_id uuid [ref: > auth_users.id]
+  restaurant_id bigint [ref: > restaurants.id]
+  note text
+  tags text [note: "text[] 권장"]
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (user_id, restaurant_id) [unique]
+    (user_id)
+  }
+}
+
+Table user_restaurant_visit_logs {
+  id bigint [pk, increment]
+  user_id uuid [ref: > auth_users.id]
+  restaurant_id bigint [ref: > restaurants.id]
+  action_type text [note: "view | call | navigate | favorite | visit_confirm"]
+  search_request_id bigint [ref: > restaurant_search_requests.id]
+  symptom_id bigint [ref: > disease_master.id]
+  created_at timestamptz
+
+  indexes {
+    (user_id, created_at)
+    (restaurant_id)
+  }
+}
+
+// --- 3) 카달로그 코드 (Major/Minor) ---
+// 운영에서 자주 바뀌는 코드/메타를 DB로 관리
+
+Table catalog_major_codes {
+  code text [pk]
+  name text
+  domain text [note: "PROVIDER / CONTENT_TYPE / REGION_LEVEL / ..."]
+  description text
+  sort_order int
+  is_enabled boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table catalog_minor_codes {
+  code text [pk]
+  major_code text [ref: > catalog_major_codes.code]
+  name text
+  name_en text
+  description text
+  sort_order int
+  is_enabled boolean
+  meta json
+  created_at timestamptz
+  updated_at timestamptz
+
+  indexes {
+    (major_code, code) [unique]
+    (major_code)
+  }
+}
+
+// --- 4) 캐시 테이블 (외부 API 비용/쿼터 절감) ---
+// 기존 서비스 플로우(영상/판매 링크)에서 필수
+
+Table youtube_cache {
+  id bigint [pk, increment]
+  query_hash text [unique]
+  query text
+  provider text [note: "youtube"]
+  response_json json
+  expires_at timestamptz
+  created_at timestamptz
+  last_accessed_at timestamptz
+}
+
+Table commerce_cache {
+  id bigint [pk, increment]
+  query_hash text [unique]
+  query text
+  provider text [note: "iherb | naver_shopping | coupang 등"]
+  response_json json
+  expires_at timestamptz
+  created_at timestamptz
+  last_accessed_at timestamptz
+}
+
+/// =========================
+// TKM (동의보감) Symptoms Master
+// =========================
+
+Table tkm_symptom_master {
+  id bigint [pk, increment]
+
+  tkm_code text [unique, note: "내부 코드(있으면)"]
+  hanja text [note: "한자 표기"]
+  korean text [not null, note: "한글 표기(현대어/원문 포함)"]
+  name_en text [note: "영문명 (예: Insomnia, Dyspepsia)"]
+  aliases text[] [default: `'{}'::text[]`, note: "동의어/표기 변형"]
+  description text [note: "동의보감 요약/정의"]
+
+  category text [note: "예: 소화/호흡/수면/통증 등"]
+  pattern_tags text[] [default: `'{}'::text[]`, note: "예: 한/열/허/실/담/어혈 등"]
+
+  source_book text [note: "예: 동의보감"]
+  source_ref text [note: "권/편/문장/페이지 등"]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (category) [name: "idx_tkm_symptom_master_category"]
+    (name_en) [name: "idx_tkm_symptom_master_name_en"]
+    // GIN 인덱스는 DBML에서 표현이 제한적일 수 있어 문서화만 남김
+    (pattern_tags) [name: "idx_tkm_symptom_master_tags", note: "GIN(pattern_tags)"]
+  }
+}
+
+
+// =========================
+// Mapping: TKM -> Modern Disease
+// =========================
+
+Table tkm_to_modern_map {
+  id bigint [pk, increment]
+
+  tkm_symptom_id bigint [not null, ref: > tkm_symptom_master.id]
+  modern_disease_id bigint [not null, ref: > disease_master.id]
+
+  mapping_strength text [not null, note: "high | medium | low"]
+  mapping_type text [not null, note: "equivalent | overlap | differential | context"]
+
+  evidence_note text [note: "왜 이렇게 매핑했는지(설명/근거)"]
+  reviewer text [note: "검수자(약사/한의사/내부)"]
+  reviewed_at timestamptz
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (tkm_symptom_id, modern_disease_id) [unique, name: "uq_tkm_to_modern_map"]
+    (tkm_symptom_id) [name: "idx_tkm_to_modern_tkm"]
+    (modern_disease_id) [name: "idx_tkm_to_modern_modern"]
+  }
+}
+
+
+// =========================
+// Mapping: Modern Disease -> MeSH
+// =========================
+
+Table modern_to_mesh_map {
+  id bigint [pk, increment]
+
+  modern_disease_id bigint [not null, ref: > disease_master.id]
+
+  mesh_term text [not null, note: "예: Sleep Initiation and Maintenance Disorders"]
+  mesh_ui text [note: "예: D012893"]
+  mesh_tree text [note: "예: F03.870.400"]
+
+  search_role text [not null, note: "primary | secondary | context"]
+  priority int [default: 100]
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (modern_disease_id, mesh_term) [unique, name: "uq_modern_to_mesh_map"]
+    (modern_disease_id, priority) [name: "idx_modern_to_mesh_modern"]
+  }
+}
+
+
+// =========================
+// PubMed Search Strategy Maps
+// =========================
+
+Table symptom_pubmed_map {
+  id bigint [pk, increment]
+
+  symptom_id bigint [not null, ref: > disease_master.id]
+  keyword_en text [not null]
+  mesh_term text
+
+  search_role text [not null, note: "primary | secondary | context"]
+  priority int [default: 100]
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (symptom_id) [name: "idx_symptom_pubmed_map_symptom"]
+    (symptom_id, priority) [name: "idx_symptom_pubmed_map_priority"]
+    (symptom_id, keyword_en) [unique, name: "uq_symptom_pubmed_map_symptom_keyword"]
+  }
+}
+
+Table ingredient_pubmed_map {
+  id bigint [pk, increment]
+
+  rep_code text [not null, ref: > foods_master.rep_code]
+
+  ingredient_name_en text [not null]
+  mesh_term text
+
+  bioactive_compound text
+  compound_mesh text
+
+  search_role text [not null, note: "primary | compound | support"]
+  priority int [default: 100]
+  note text
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (rep_code) [name: "idx_ingredient_pubmed_map_rep"]
+    (rep_code, priority) [name: "idx_ingredient_pubmed_map_priority"]
+
+    // 실제 DB는 (rep_code, ingredient_name_en, coalesce(bioactive_compound,'')) expression unique index.
+    // DBML은 표현식 인덱스 제약이 있어 "논리적 유니크"로 문서화.
+    (rep_code, ingredient_name_en, bioactive_compound) [unique, name: "uq_ingredient_pubmed_map_rep_ing_compound"]
+  }
+}
+
+// =========================
+// Traditional Foods (Donguibogam)
+// =========================
+
+Table traditional_foods {
+  id bigint [pk, increment]
+  rep_code text
+  rep_name text
+  trad_code text
+  trad_name text
+  disease text
+  disease_read text
+  disease_alias text
+  disease_alias_read text
+  modern_disease text
+  disease_src text
+  disease_src_read text
+  disease_src_year text
+  disease_src_section text
+  disease_content text
+  prescription text
+  prescription_read text
+  prescription_modern text
+  prescription_alias text
+  presc_src text
+  presc_src_read text
+  presc_src_year text
+  presc_src_section text
+  indication text
+  etc text
+  food_type text
+  ingredients text
+  preparation text
+  dosage text
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    (rep_code) [name: "idx_tf_rep_code"]
+    (trad_code) [name: "idx_tf_trad_code"]
+    (disease) [name: "idx_tf_disease"]
+  }
+}

@@ -487,8 +487,8 @@ const App = () => {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-md mx-auto bg-[#fffdfa] shadow-2xl overflow-hidden relative border-x border-amber-50 font-sans">
-      
+    <div className="h-screen bg-[#fffdfa] overflow-hidden relative font-sans flex flex-col max-w-md mx-auto shadow-2xl border-x border-amber-50">
+
       {/* Header */}
       <header className="p-5 bg-white flex items-center justify-between border-b border-amber-50 sticky top-0 z-50">
         <div>
@@ -517,6 +517,11 @@ const App = () => {
               </button>
             )
           )}
+          {/* PC 대시보드 링크 */}
+          <a href="/pc"
+            className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 hover:bg-slate-100 rounded-full px-2 py-1 border border-slate-100 transition-colors">
+            <span>🖥️</span> PC
+          </a>
           {showResult && (
             <button onClick={() => setShowResult(false)} className="text-amber-600 text-xs font-bold bg-amber-50 px-3 py-1.5 rounded-full hover:bg-amber-100">닫기</button>
           )}
@@ -1087,6 +1092,23 @@ const App = () => {
           const stacksWithDiet = savedStacks.filter(s => s.dietPlan);
           const totalDrugTypes = Object.keys(drugFreq).length;
 
+          // AI 분석 종합 데이터 수집
+          const allWarnings: string[] = [];
+          const allAdvice: string[] = [];
+          const drugEfficacy: Record<string, string> = {};
+          savedStacks.forEach(s => {
+            const warn = s.data?.prescriptionSummary?.warnings;
+            if (warn && warn.trim()) allWarnings.push(warn.trim());
+            const advice = s.data?.lifestyleGuide?.advice;
+            if (advice && advice.trim()) allAdvice.push(advice.trim());
+            (s.data?.drugDetails ?? []).forEach(d => {
+              if (d.efficacy && !drugEfficacy[d.name]) drugEfficacy[d.name] = d.efficacy;
+            });
+          });
+          const topDrugSummaries = topDrugs.slice(0, 3).map(([name]) => ({
+            name, efficacy: drugEfficacy[name] || '',
+          })).filter(d => d.efficacy);
+
           return savedStacks.length === 0 ? (
             <div className="py-20 text-center">
               <div className="text-6xl mb-4 opacity-20">📊</div>
@@ -1114,6 +1136,68 @@ const App = () => {
                   </div>
                 </div>
                 <p className="text-[10px] opacity-60 text-center">최근 분석: {savedStacks[0]?.date}</p>
+              </div>
+
+              {/* ── AI 분석 종합 요약 ── */}
+              <div className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center text-sm">✨</div>
+                  <h3 className="text-xs font-bold text-slate-800">AI 분석 종합 요약</h3>
+                </div>
+
+                {/* 주요 약물 효능 */}
+                {topDrugSummaries.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">주요 복용 약물 분석</p>
+                    <div className="space-y-2">
+                      {topDrugSummaries.map(d => (
+                        <div key={d.name} className="flex gap-2 p-3 bg-blue-50/50 rounded-xl">
+                          <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full h-fit shrink-0">{d.name}</span>
+                          <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">{d.efficacy}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 주의사항 종합 */}
+                {allWarnings.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-2">주의사항 종합</p>
+                    <div className="p-3 bg-rose-50/50 rounded-xl space-y-1.5">
+                      {allWarnings.slice(0, 3).map((w, i) => (
+                        <p key={i} className="text-[11px] text-rose-800/80 leading-relaxed flex gap-2">
+                          <span className="text-rose-400 shrink-0">⚠</span>
+                          <span className="line-clamp-2">{w}</span>
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 생활 관리 조언 */}
+                {allAdvice.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">생활 관리 조언</p>
+                    <div className="p-3 bg-emerald-50/50 rounded-xl">
+                      <p className="text-[11px] text-emerald-800/80 leading-relaxed line-clamp-4">{allAdvice[allAdvice.length - 1]}</p>
+                      {allAdvice.length > 1 && (
+                        <p className="text-[9px] text-emerald-400 mt-1.5">외 {allAdvice.length - 1}건의 분석 결과 포함</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 추천 식재료 한줄 요약 */}
+                {uniqueFoods.length > 0 && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50/50 rounded-xl">
+                    <span className="text-sm shrink-0">🌿</span>
+                    <p className="text-[11px] text-amber-800/80 leading-relaxed">
+                      분석된 처방 기반 추천 식재료: <strong>{uniqueFoods.slice(0, 5).map(f => f.name).join(', ')}</strong>
+                      {uniqueFoods.length > 5 && ` 외 ${uniqueFoods.length - 5}종`}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* ── 섹션 2: 자주 처방받은 약물 ── */}

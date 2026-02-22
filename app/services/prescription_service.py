@@ -255,6 +255,11 @@ class PrescriptionService:
                         "precaution": f"⚠️ 복용 중 주의 필요: {rationale_ko}",
                     })
 
+        # ── foods 없으면 AI 폴백 ────────────────────────────────────
+        if not foods and drug_list:
+            print("[PrescriptionService] foods 없음 → AI 폴백 호출")
+            foods = await self._ai_food_fallback(drug_list)
+
         matched_name = analysis_result.matched_symptom_name if analysis_result else None
         dongui_section = (
             f"{matched_name} 관련 동의보감 처방"
@@ -643,6 +648,11 @@ class PrescriptionService:
                         "precaution": f"⚠️ 복용 중 주의 필요: {rationale_ko}",
                     })
 
+        # ── foods 없으면 AI 폴백 ────────────────────────────────────
+        if not foods and drug_list:
+            print("[PrescriptionService/stream] foods 없음 → AI 폴백 호출")
+            foods = await self._ai_food_fallback(drug_list)
+
         matched_name = analysis_result.matched_symptom_name if analysis_result else None
         dongui_section = (
             f"{matched_name} 관련 동의보감 처방" if matched_name
@@ -688,6 +698,68 @@ class PrescriptionService:
                 },
             },
         }
+
+    async def _ai_food_fallback(self, drug_list: list) -> list:
+        """
+        DB/AI 분석에서 식재료가 나오지 않을 때 OpenAI로 직접 추천.
+        Returns list of {"name", "reason", "precaution"} dicts (max 5).
+        """
+        if not drug_list:
+            return []
+        try:
+            import openai
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                return []
+            client = openai.AsyncOpenAI(api_key=openai_key)
+            drugs_str = ", ".join(drug_list[:5])
+            prompt = f"""다음 처방약을 복용하는 환자에게 동의보감 기반 식재료를 추천해주세요.
+처방약: {drugs_str}
+
+약물이 치료하는 증상/질환을 추론한 뒤, 그에 맞는 식재료를 추천하세요.
+
+반드시 아래 JSON 형식만 반환하세요 (마크다운 없이):
+[
+  {{"name": "식재료명(한글)", "reason": "이 약과 함께 이 식재료가 도움이 되는 이유(2문장, 한글)", "precaution": "주의사항(없으면 빈 문자열)"}},
+  ...
+]
+
+규칙:
+- 5개 추천
+- 약물과 충돌하지 않는 식재료만 선택
+- 동의보감·한방 관점의 근거 포함
+- JSON 배열만 반환, 설명 텍스트 없음"""
+
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 동의보감 전문가입니다. 처방약에 맞는 약선 식재료를 JSON으로만 답합니다."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.4,
+                max_tokens=800,
+            )
+            raw = response.choices[0].message.content.strip()
+            # JSON 배열 파싱
+            import json as _json
+            # 마크다운 코드블록 제거
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            foods = _json.loads(raw.strip())
+            if isinstance(foods, list):
+                return [
+                    {
+                        "name": f.get("name", ""),
+                        "reason": f.get("reason", ""),
+                        "precaution": f.get("precaution", ""),
+                    }
+                    for f in foods if f.get("name")
+                ]
+        except Exception as e:
+            print(f"[PrescriptionService] _ai_food_fallback 오류: {e}")
+        return []
 
     def _build_lifestyle_advice(self, analysis_result, drug_list: list) -> str:
         """분석 결과 기반 생활 가이드 생성"""
