@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import type React from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -17,10 +18,8 @@ import {
   Trash2,
   X,
   PlusCircle,
-  Zap,
   Newspaper,
   ExternalLink,
-  TrendingUp,
   Tv,
   Navigation,
   Phone,
@@ -934,7 +933,7 @@ export default function App() {
                   </div>
                   <h2 className="text-2xl font-bold text-slate-800 mb-3">건강 리포트</h2>
                   <p className="text-slate-500 text-sm mb-6">처방전을 분석하면 나만의 건강 리포트가 만들어져요</p>
-                  <button onClick={() => setActiveTab('home')} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-2xl hover:bg-emerald-700 transition-colors">대시보드에서 시작하기</button>
+                  <button onClick={() => setActiveTab('dashboard')} className="px-6 py-2.5 bg-emerald-600 text-white text-sm font-bold rounded-2xl hover:bg-emerald-700 transition-colors">대시보드에서 시작하기</button>
                 </motion.div>
               ) : (
                 <motion.div key="reports" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-10">

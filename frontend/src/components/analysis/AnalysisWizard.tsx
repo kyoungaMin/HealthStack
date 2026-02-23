@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import Step1Extraction from './Step1Extraction';
 import Step2Search from './Step2Search';
 import Step3Report from './Step3Report';
@@ -18,7 +18,7 @@ export default function AnalysisWizard({ onReportComplete }: Props) {
     const [sessionId, setSessionId] = useState<string>('');
     const [detectedKeywords, setDetectedKeywords] = useState<{ keyword: string, confidence: number }[]>([]);
     const [ocrText, setOcrText] = useState<string>('');
-    const [candidates, setCandidates] = useState<{ tkm_symptoms: any[], modern_drugs: any[] } | null>(null);
+    const [_candidates, setCandidates] = useState<{ tkm_symptoms: any[], modern_drugs: any[] } | null>(null);
     const [finalReport, setFinalReport] = useState<any>(null);
     const [reportTitle, setReportTitle] = useState<string>('증상 분석');
 

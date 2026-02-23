@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     X, Utensils, BookOpen, Heart, PlusCircle,
@@ -173,7 +173,6 @@ export default function DietGuideModal({ savedStacks, onClose, onAnalyzePrescrip
             (s.prescriptionData?.donguibogam?.foods?.length ?? 0) > 0
     );
 
-    const hasAnyStack = savedStacks.length > 0;
     const donguibogam = latestWithDiet?.prescriptionData?.donguibogam;
     const lifestyleAdvice = latestWithDiet?.prescriptionData?.lifestyleGuide?.advice;
 

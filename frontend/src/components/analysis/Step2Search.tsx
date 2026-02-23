@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Edit, Loader2 } from 'lucide-react';
 import type { CandidateItem } from '../../services/analysisApi';
@@ -11,7 +11,7 @@ interface Props {
     isLoading: boolean;
 }
 
-export default function Step2Search({ initialKeywords, ocrText, onSearch, onGenerateReport, isLoading }: Props) {
+export default function Step2Search({ initialKeywords, ocrText: _ocrText, onSearch, onGenerateReport, isLoading }: Props) {
     const [keywords, setKeywords] = useState<string[]>(initialKeywords);
     const [isSearching, setIsSearching] = useState(false);
     const [searchResults, setSearchResults] = useState<{ tkm_symptoms: CandidateItem[], modern_drugs: CandidateItem[] } | null>(null);

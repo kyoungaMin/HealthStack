@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { PieChart, List, AlertTriangle, Lightbulb, MessageCircle } from 'lucide-react';
 import type { ReportData } from '../../services/analysisApi';
