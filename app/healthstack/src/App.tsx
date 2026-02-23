@@ -518,7 +518,7 @@ const App = () => {
             )
           )}
           {/* PC 대시보드 링크 */}
-          <a href="/pc"
+          <a href="https://health-stack-inij.vercel.app" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 hover:bg-slate-100 rounded-full px-2 py-1 border border-slate-100 transition-colors">
             <span>🖥️</span> PC
           </a>
