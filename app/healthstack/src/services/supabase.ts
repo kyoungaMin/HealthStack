@@ -6,4 +6,4 @@ export const supabase = createClient(
   { auth: { flowType: 'implicit' } }
 );
 
-export const BACKEND_URL = 'http://localhost:8001';
+export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';

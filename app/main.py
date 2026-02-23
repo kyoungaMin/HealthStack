@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints import analysis, pharmacy
@@ -12,10 +13,14 @@ app = FastAPI(
 
 # CORS 설정 (React 프론트엔드 연동)
 origins = [
-    "http://localhost:3000", # React
-    "http://localhost:5173", # Vite
-    "*"
+    "http://localhost:3000",
+    "http://localhost:3002",
+    "http://localhost:5173",
+    "http://localhost:8000",
 ]
+_cors_env = os.getenv("CORS_ORIGINS", "")
+if _cors_env:
+    origins.extend([o.strip() for o in _cors_env.split(",") if o.strip()])
 
 app.add_middleware(
     CORSMiddleware,
