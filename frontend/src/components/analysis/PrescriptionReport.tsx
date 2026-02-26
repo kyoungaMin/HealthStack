@@ -3,8 +3,9 @@ import { motion } from 'framer-motion';
 import {
     Pill, AlertTriangle, Brain, BookOpen, Heart,
     Loader2, CheckCircle, ChevronDown, ChevronUp,
+    Stethoscope,
 } from 'lucide-react';
-import type { PrescriptionData } from '../../services/analysisApi';
+import type { PrescriptionData, DoctorAnalysis } from '../../services/analysisApi';
 import { getDietRecommendation } from '../../services/analysisApi';
 
 interface Props {
@@ -68,19 +69,72 @@ export default function PrescriptionReport({ data }: Props) {
                 </div>
             </Section>
 
-            {/* ── 주의사항 ── */}
-            {prescriptionSummary.warnings && (
-                <div className="p-6 bg-rose-50 rounded-2xl border border-rose-100 relative overflow-hidden">
-                    <h4 className="text-rose-800 font-bold mb-2 flex items-center gap-2 text-sm">
-                        <AlertTriangle size={16} className="text-rose-500" />
-                        주의사항 및 상호작용
-                    </h4>
-                    <p className="text-rose-900/80 text-sm leading-relaxed">
-                        {prescriptionSummary.warnings}
-                    </p>
-                    <div className="absolute -bottom-4 -right-4 text-7xl opacity-5 rotate-12">⚠️</div>
-                </div>
-            )}
+            {/* ── 주치의 종합분석 ── */}
+            {prescriptionSummary.warnings && (() => {
+                const w = prescriptionSummary.warnings;
+                // 새 형식: {analysis, criticalAlerts}
+                const isDoctorAnalysis = typeof w === 'object' && !Array.isArray(w) && 'analysis' in w;
+                if (isDoctorAnalysis) {
+                    const da = w as DoctorAnalysis;
+                    if (!da.analysis?.trim()) return null;
+                    return (
+                        <div className="p-6 bg-blue-50 rounded-2xl border border-blue-100 relative overflow-hidden">
+                            <h4 className="text-blue-800 font-bold mb-4 flex items-center gap-2 text-sm">
+                                <Stethoscope size={16} className="text-blue-600" />
+                                주치의 종합분석
+                            </h4>
+                            <div className="space-y-3">
+                                {da.analysis.split('\n\n').filter(Boolean).map((paragraph, i) => (
+                                    <p key={i} className="text-slate-700 text-sm leading-relaxed">
+                                        {paragraph.split('\n').map((line, j) => (
+                                            <React.Fragment key={j}>
+                                                {j > 0 && <br />}
+                                                {line}
+                                            </React.Fragment>
+                                        ))}
+                                    </p>
+                                ))}
+                            </div>
+                            {da.criticalAlerts && da.criticalAlerts.length > 0 && (
+                                <div className="mt-4 p-4 bg-rose-50 rounded-xl border border-rose-200">
+                                    <h5 className="text-rose-700 font-bold text-xs mb-2 flex items-center gap-1.5">
+                                        <AlertTriangle size={13} className="text-rose-500" />
+                                        즉시 주의가 필요한 증상
+                                    </h5>
+                                    <div className="space-y-1.5">
+                                        {da.criticalAlerts.map((alert, i) => (
+                                            <p key={i} className="text-rose-800 text-sm flex gap-2">
+                                                <span className="text-rose-400 shrink-0">•</span>
+                                                <span>{alert}</span>
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="absolute -bottom-4 -right-4 text-7xl opacity-5 rotate-12">🩺</div>
+                        </div>
+                    );
+                }
+                // 하위호환: 기존 string | string[] 형식
+                const items = Array.isArray(w) ? w : (typeof w === 'string' ? w.split(' | ').filter(Boolean) : []);
+                if (items.length === 0) return null;
+                return (
+                    <div className="p-6 bg-rose-50 rounded-2xl border border-rose-100 relative overflow-hidden">
+                        <h4 className="text-rose-800 font-bold mb-3 flex items-center gap-2 text-sm">
+                            <AlertTriangle size={16} className="text-rose-500" />
+                            주의사항 안내
+                        </h4>
+                        <div className="space-y-2">
+                            {items.map((item, i) => (
+                                <p key={i} className="text-rose-900/80 text-sm leading-relaxed flex gap-2">
+                                    <span className="text-rose-400 shrink-0 mt-0.5">⚠️</span>
+                                    <span>{item}</span>
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ── 2-column layout: Drug Details + Donguibogam ── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

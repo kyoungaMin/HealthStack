@@ -579,13 +579,14 @@ class PrescriptionService:
                         "sideEffects": "",
                     })
 
-        # ── Step 4: 동의보감·생활가이드 (항상 실행) ──────────────────
+        # ── Step 4: 동의보감·생활가이드·AI 주의사항 (항상 실행) ─────────
         # Section 3 데이터(academic_summary)와 donguibogam.foods가 초기 응답에 포함되어야 함
-        yield {"type": "progress", "step": 4, "message": "동의보감·생활가이드 분석 중...", "progress": 85}
+        yield {"type": "progress", "step": 4, "message": "동의보감·생활가이드·주의사항 분석 중...", "progress": 85}
         symptom_text = (
             f"복용 약물: {', '.join(drug_list)}" if drug_list
             else warnings or "처방 분석"
         )
+        # Step 4a: 증상 분석 + 유사처방 (병렬)
         analysis_result, sim_pre_result = await asyncio.gather(
             self.analyze_service.analyze_symptom(symptom_text, current_meds=drug_list),
             self.sim_pre_service.search_by_drugs(drug_list, num_rows=3),
@@ -597,6 +598,18 @@ class PrescriptionService:
         if isinstance(sim_pre_result, Exception):
             print(f"[PrescriptionService/stream] SimPreService 오류: {sim_pre_result}")
             sim_pre_result = None
+
+        # Step 4b: 주치의 종합분석 (analysis_result 증상 정보 포함)
+        symptom_info = ""
+        if analysis_result:
+            matched = analysis_result.matched_symptom_name or ""
+            summary = analysis_result.symptom_summary or ""
+            symptom_info = f"{matched} - {summary}" if matched else summary
+        try:
+            ai_warnings = await self._ai_precautions(drug_list, drug_details, warnings, symptom_info)
+        except Exception as e:
+            print(f"[PrescriptionService/stream] AI 주의사항 오류: {e}")
+            ai_warnings = self._fallback_precautions(drug_list, warnings)
 
         # ── 결과 조합 ───────────────────────────────────────────────
         symptom_summary = analysis_result.symptom_summary if analysis_result else ""
@@ -660,11 +673,6 @@ class PrescriptionService:
         )
         lifestyle_advice = self._build_lifestyle_advice(analysis_result, drug_list)
         symptom_tokens = [t for t in (matched_name or "").split() if len(t) >= 2]
-        default_warning = (
-            f"복용 약물 {len(drug_list)}종 분석 완료. "
-            "복약 중 이상 증상 시 의사·약사와 상담하세요."
-            if drug_list else "처방전 분석이 완료되었습니다."
-        )
         sim_pre_section = (
             self.sim_pre_service.to_donguibogam_section(sim_pre_result)
             if sim_pre_result else {"traditionalPrescriptions": [], "tkmPapers": []}
@@ -675,7 +683,7 @@ class PrescriptionService:
             "data": {
                 "prescriptionSummary": {
                     "drugList": drug_list,
-                    "warnings": warnings or default_warning,
+                    "warnings": ai_warnings,
                 },
                 "drugDetails": drug_details,
                 "academicEvidence": {
@@ -782,3 +790,97 @@ class PrescriptionService:
             parts.append("규칙적인 식습관과 충분한 수분 섭취를 권장드립니다.")
         parts.append("복용 중 이상 증상 발생 시 즉시 담당 의사 또는 약사와 상담하세요.")
         return " ".join(parts)
+
+    async def _ai_precautions(self, drug_list: list, drug_details: list, dur_warnings: str, symptom_info: str = "") -> dict:
+        """
+        주치의 관점 종합분석: 처방 이력을 기반으로 추정 질환, 약물 조합 평가,
+        핵심 주의사항, 생활 관리 조언을 서술형 소견으로 생성.
+        Returns {"analysis": str, "criticalAlerts": list[str]}
+        """
+        fallback = {"analysis": "", "criticalAlerts": []}
+        if not drug_list:
+            fallback["analysis"] = "처방전 분석이 완료되었습니다."
+            return fallback
+        try:
+            import openai
+            openai_key = os.getenv("OPENAI_API_KEY")
+            if not openai_key:
+                return self._fallback_precautions(drug_list, dur_warnings)
+            client = openai.AsyncOpenAI(api_key=openai_key)
+            drugs_str = ", ".join(drug_list[:5])
+
+            detail_lines = []
+            for d in drug_details[:5]:
+                name = d.get("name", "")
+                efficacy = d.get("efficacy", "")
+                side = d.get("sideEffects", "")
+                detail_lines.append(f"- {name}: 효능={efficacy} / 부작용={side}")
+            details_text = "\n".join(detail_lines) if detail_lines else "상세 정보 없음"
+
+            prompt = f"""당신은 이 환자의 주치의(내과 전문의)입니다. 아래 처방 약물 정보를 종합적으로 분석하여, 환자에게 전달할 **진료 소견서** 형태의 종합분석을 작성해주세요.
+
+처방약: {drugs_str}
+
+약물 상세 정보:
+{details_text}
+
+{f"병용금기(DUR) 경고: {dur_warnings}" if dur_warnings else "병용금기(DUR): 특이사항 없음"}
+
+{f"추정 증상/질환 정보: {symptom_info}" if symptom_info else ""}
+
+반드시 아래 JSON 형식만 반환하세요 (마크다운 없이):
+{{
+  "analysis": "종합분석 본문 (3~4문단, 줄바꿈은 \\n으로)",
+  "criticalAlerts": ["즉시 주의 필요한 사항 1", "즉시 주의 필요한 사항 2"]
+}}
+
+작성 규칙:
+1. analysis 본문 구성 (3~4문단, 각 문단은 \\n\\n으로 구분):
+   - 1문단: 처방약 조합으로 추정되는 질환/증상 분석 ("처방 내용을 종합적으로 검토한 결과...")
+   - 2문단: 약물 간 상호작용 및 조합 평가 (시너지 효과, 병용 시 유의점 등)
+   - 3문단: 복용법·식이·생활 관리 조언 (식전/식후, 피해야 할 음식, 운전·졸음 등)
+   - 4문단(선택): 치료 경과 관찰 포인트 및 다음 진료 시 확인할 사항
+2. criticalAlerts: 즉시 병원 방문이 필요한 위험 증상 1~3개 (간결하게)
+3. 반드시 한국어로 작성
+4. 주치의가 환자에게 직접 말하는 따뜻하면서도 전문적인 어조 ("~하시는 것이 좋겠습니다", "~에 유의해 주세요")
+5. 단순 나열이 아닌, 처방 전체를 종합한 의학적 맥락 분석
+6. JSON 객체만 반환, 그 외 텍스트 없음"""
+
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "당신은 내과 전문의이자 환자의 주치의입니다. 처방 이력을 기반으로 종합적인 의학 소견을 JSON 형식으로만 답합니다. 단순 나열이 아닌, 처방약 조합의 의학적 맥락을 분석하는 전문적이고 따뜻한 소견서를 작성합니다."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.5,
+                max_tokens=1500,
+            )
+            raw = response.choices[0].message.content.strip()
+            import json as _json
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            result = _json.loads(raw.strip())
+            if isinstance(result, dict) and "analysis" in result:
+                return {
+                    "analysis": result["analysis"],
+                    "criticalAlerts": result.get("criticalAlerts", [])[:3],
+                }
+        except Exception as e:
+            print(f"[PrescriptionService] _ai_precautions 오류: {e}")
+        return self._fallback_precautions(drug_list, dur_warnings)
+
+    def _fallback_precautions(self, drug_list: list, dur_warnings: str) -> dict:
+        """AI 호출 실패 시 기본 주의사항"""
+        alerts = []
+        if dur_warnings:
+            for w in dur_warnings.split(" | "):
+                if w.strip():
+                    alerts.append(w.strip())
+        analysis = (
+            f"복용 약물 {len(drug_list)}종에 대한 분석이 완료되었습니다. "
+            "처방된 약물을 의사의 지시에 따라 정해진 용법·용량대로 복용해 주세요. "
+            "복약 중 이상 증상이 나타나면 즉시 의사 또는 약사와 상담하시기 바랍니다."
+        )
+        return {"analysis": analysis, "criticalAlerts": alerts}

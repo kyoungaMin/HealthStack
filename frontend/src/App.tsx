@@ -27,6 +27,7 @@ import {
   RefreshCw,
   Sparkles,
   LogOut,
+  Users,
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -56,6 +57,9 @@ import {
   type HealthTip,
 } from './services/analysisApi';
 import { supabase } from './services/supabase';
+import { notifyFamilyNewPrescription } from './services/familyApi';
+import { fetchStacks, saveStack, deleteStackApi } from './services/stacksApi';
+import FamilyPrescriptionsView from './components/family/FamilyPrescriptionsView';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 declare const kakao: any;
@@ -195,6 +199,9 @@ export default function App() {
     onNotification: (item) => notifStore.addNotification(item),
   });
 
+  // Stack view toggle (my / family)
+  const [stackView, setStackView] = useState<'my' | 'family'>('my');
+
   // Auth
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -297,6 +304,28 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ── 서버에서 스택 불러오기 (로그인 시) ─────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    fetchStacks().then((serverStacks) => {
+      if (!serverStacks || serverStacks.length === 0) return;
+      const rebuilt: SavedStack[] = serverStacks.map((s) => ({
+        id: s.id,
+        title: s.title,
+        type: s.type as 'prescription' | 'symptom',
+        date: s.date,
+        prescriptionData: s.stack_data?.prescriptionData as PrescriptionData | undefined,
+        report: s.stack_data?.report as ReportData | undefined,
+      }));
+      setSavedStacks((prev) => {
+        // Merge: server stacks + local-only stacks (by id)
+        const serverIds = new Set(rebuilt.map((s) => s.id));
+        const localOnly = prev.filter((s) => !serverIds.has(s.id));
+        return [...rebuilt, ...localOnly];
+      });
+    });
+  }, [user]);
+
   const handleGoogleLogin = () => {
     supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
   };
@@ -336,6 +365,10 @@ export default function App() {
           prescriptionData: data,
         };
         setSavedStacks(prev => [newStack, ...prev]);
+        // 서버에 저장
+        if (user) {
+          saveStack({ id: newStack.id, title: newStack.title, type: newStack.type, date: newStack.date, stack_data: { prescriptionData: data } });
+        }
         setModalStack(newStack);
         setShowAnalysisModal(true);
         setLoading(false);
@@ -347,6 +380,9 @@ export default function App() {
           showToast('✅ 처방전 분석이 완료되었습니다');
           notifStore.addNotification({ type: 'analysis', title: '분석 완료', body: `${title} 분석이 완료되었습니다` });
         }
+
+        // 가족 그룹에 새 처방전 알림
+        notifyFamilyNewPrescription();
 
         // Auto-extract medications for reminder schedules
         if (settings.notification.medicationReminder && drugList.length > 0) {
@@ -389,6 +425,10 @@ export default function App() {
       report,
     };
     setSavedStacks(prev => [newStack, ...prev]);
+    // 서버에 저장
+    if (user) {
+      saveStack({ id: newStack.id, title: newStack.title, type: newStack.type, date: newStack.date, stack_data: { report } });
+    }
     setModalStack(newStack);
     setShowSymptomModal(false);
     setShowAnalysisModal(true);
@@ -398,6 +438,9 @@ export default function App() {
       showToast('✅ 증상 분석이 완료되었습니다');
       notifStore.addNotification({ type: 'analysis', title: '증상 분석 완료', body: `${title || '증상 분석'} 완료` });
     }
+
+    // 가족 그룹에 새 처방전 알림
+    notifyFamilyNewPrescription();
   };
 
   // ── Open stack in modal ───────────────────────────────────────────────────
@@ -411,6 +454,7 @@ export default function App() {
     e.stopPropagation();
     if (confirm('이 기록을 삭제하시겠습니까?')) {
       setSavedStacks(prev => prev.filter(s => s.id !== id));
+      if (user) deleteStackApi(id);
     }
   };
 
@@ -821,14 +865,49 @@ export default function App() {
                 <div className="flex justify-between items-center">
                   <h2 className="text-3xl font-bold text-slate-800 tracking-tight">복용 스택 아카이브</h2>
                   <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">필터</button>
-                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">내보내기</button>
-                    <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2">
-                      <PlusCircle size={16} /> 새 분석
-                    </button>
+                    {stackView === 'my' && (
+                      <>
+                        <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">필터</button>
+                        <button className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors">내보내기</button>
+                        <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2">
+                          <PlusCircle size={16} /> 새 분석
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
+                {/* 세그먼트 컨트롤: 로그인 시만 표시 */}
+                {user && (
+                  <div className="flex bg-slate-100 rounded-xl p-1 w-fit">
+                    <button
+                      onClick={() => setStackView('my')}
+                      className={cn(
+                        'px-5 py-2 text-sm font-bold rounded-lg transition-all',
+                        stackView === 'my'
+                          ? 'bg-white text-emerald-700 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      내 처방전
+                    </button>
+                    <button
+                      onClick={() => setStackView('family')}
+                      className={cn(
+                        'flex items-center gap-1.5 px-5 py-2 text-sm font-bold rounded-lg transition-all',
+                        stackView === 'family'
+                          ? 'bg-white text-rose-600 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700'
+                      )}
+                    >
+                      <Users size={14} />
+                      가족 처방전
+                    </button>
+                  </div>
+                )}
+
+                {/* 내 처방전 뷰 */}
+                {stackView === 'my' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {savedStacks.map((stack) => (
                     <div key={stack.id} onClick={() => openStack(stack)} className="glass-card p-6 bg-white hover:border-emerald-200 transition-all cursor-pointer group relative">
@@ -858,6 +937,30 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                )}
+
+                {/* 가족 처방전 뷰 */}
+                {stackView === 'family' && (
+                  <FamilyPrescriptionsView
+                    onViewPrescription={(data, drugList, sections) => {
+                      const familyStack: SavedStack = {
+                        id: 'family-' + Date.now().toString(),
+                        date: new Date().toLocaleDateString('ko-KR', {
+                          year: 'numeric', month: 'long', day: 'numeric',
+                        }),
+                        title: `가족 처방전 (약 ${drugList.length}종)`,
+                        type: 'prescription',
+                        prescriptionData: {
+                          drugs: drugList,
+                          analysis_result: data,
+                          revealed_sections: sections,
+                        } as any,
+                      };
+                      setModalStack(familyStack);
+                      setShowAnalysisModal(true);
+                    }}
+                  />
+                )}
               </motion.div>
             )}
 

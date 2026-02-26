@@ -66,10 +66,15 @@ export interface DonguibogamFood {
     precaution?: string;
 }
 
+export interface DoctorAnalysis {
+    analysis: string;           // 주치의 종합분석 소견 (서술형)
+    criticalAlerts: string[];   // 즉시 주의 필요 사항
+}
+
 export interface PrescriptionData {
     prescriptionSummary: {
         drugList: string[];
-        warnings: string;
+        warnings: DoctorAnalysis | string | string[];  // 새 형식 + 하위호환
     };
     drugDetails: DrugDetail[];
     academicEvidence: AcademicEvidence;
