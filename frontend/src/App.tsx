@@ -1,5 +1,5 @@
 import type React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -33,7 +33,16 @@ import { twMerge } from 'tailwind-merge';
 import Step3Report from './components/analysis/Step3Report';
 import PrescriptionReport from './components/analysis/PrescriptionReport';
 import AnalysisWizard from './components/analysis/AnalysisWizard';
+import SettingsPage from './components/settings/SettingsPage';
+import Toast from './components/settings/Toast';
+import { useSettings } from './contexts/SettingsContext';
+import { useNotificationScheduler } from './hooks/useNotificationScheduler';
+import { sendBrowserNotification } from './services/notificationService';
+import type { MedicationSchedule } from './types/settings';
 import DietGuideModal from './components/analysis/DietGuideModal';
+import MedicationReminderSetup from './components/analysis/MedicationReminderSetup';
+import NotificationPanel from './components/notifications/NotificationPanel';
+import { useNotificationStore } from './hooks/useNotificationStore';
 import {
   analyzePrescriptionSSE,
   getHealthNews,
@@ -177,7 +186,14 @@ const PharmacyCard = ({
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'stacks' | 'map' | 'reports'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'stacks' | 'map' | 'reports' | 'settings'>('dashboard');
+  const { settings, showToast, updateNotification } = useSettings();
+  const notifStore = useNotificationStore();
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  useNotificationScheduler({
+    onNotification: (item) => notifStore.addNotification(item),
+  });
 
   // Auth
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -203,6 +219,9 @@ export default function App() {
 
   // Symptom wizard modal
   const [showSymptomModal, setShowSymptomModal] = useState(false);
+
+  // Medication reminder setup in modal
+  const [showMedSetup, setShowMedSetup] = useState(false);
 
   // Diet guide modal
   const [showDietModal, setShowDietModal] = useState(false);
@@ -321,6 +340,32 @@ export default function App() {
         setShowAnalysisModal(true);
         setLoading(false);
         setLoadingProgress(100);
+
+        // Analysis complete notification
+        if (settings.notification.analysisComplete) {
+          sendBrowserNotification('분석 완료', `${title} 분석이 완료되었습니다`);
+          showToast('✅ 처방전 분석이 완료되었습니다');
+          notifStore.addNotification({ type: 'analysis', title: '분석 완료', body: `${title} 분석이 완료되었습니다` });
+        }
+
+        // Auto-extract medications for reminder schedules
+        if (settings.notification.medicationReminder && drugList.length > 0) {
+          const existingNames = settings.notification.medicationSchedules.map(s => s.drugName);
+          const newDrugs = drugList.filter(d => !existingNames.includes(d));
+          if (newDrugs.length > 0) {
+            const newSchedules: MedicationSchedule[] = newDrugs.map(drugName => ({
+              id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+              drugName,
+              times: ['08:00', '12:00', '18:00'],
+              daysOfWeek: [],
+              enabled: false,
+            }));
+            updateNotification({
+              medicationSchedules: [...settings.notification.medicationSchedules, ...newSchedules],
+            });
+            showToast(`💊 ${newDrugs.length}개 약물이 복약 알림에 추가되었습니다 (설정에서 확인)`);
+          }
+        }
       },
       (errMsg: string) => {
         alert(`분석에 실패했습니다: ${errMsg}`);
@@ -347,6 +392,12 @@ export default function App() {
     setModalStack(newStack);
     setShowSymptomModal(false);
     setShowAnalysisModal(true);
+
+    if (settings.notification.analysisComplete) {
+      sendBrowserNotification('증상 분석 완료', `${title || '증상 분석'} 완료`);
+      showToast('✅ 증상 분석이 완료되었습니다');
+      notifStore.addNotification({ type: 'analysis', title: '증상 분석 완료', body: `${title || '증상 분석'} 완료` });
+    }
   };
 
   // ── Open stack in modal ───────────────────────────────────────────────────
@@ -370,7 +421,7 @@ export default function App() {
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text.substring(0, 300));
       utter.lang = 'ko-KR';
-      utter.rate = 0.9;
+      utter.rate = settings.display.ttsSpeed;
       window.speechSynthesis.speak(utter);
     }
   };
@@ -378,7 +429,9 @@ export default function App() {
   const getSpeakText = (stack: SavedStack | null) => {
     if (!stack) return '';
     if (stack.type === 'prescription' && stack.prescriptionData) {
-      return stack.prescriptionData.prescriptionSummary?.warnings ?? '';
+      const w = stack.prescriptionData.prescriptionSummary?.warnings;
+      if (Array.isArray(w)) return w.join('. ');
+      return w ?? '';
     }
     return stack.report?.summary ?? '';
   };
@@ -477,14 +530,14 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex h-screen bg-[#FCFAF7] overflow-hidden font-sans">
+    <div className="flex h-screen bg-[var(--bg-primary)] overflow-hidden font-sans transition-colors duration-300">
 
       {/* ── Sidebar ── */}
-      <aside className="w-72 bg-white border-r border-slate-100 flex flex-col p-6 z-30 shrink-0">
+      <aside className="w-72 bg-[var(--bg-surface)] border-r border-[var(--border-color)] flex flex-col p-6 z-30 shrink-0 transition-colors duration-300">
         <div className="mb-10 px-2">
           <div className="flex items-center gap-2 mb-1">
             <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">H</div>
-            <h1 className="text-xl font-bold text-slate-800 tracking-tight">HealthStack</h1>
+            <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight">HealthStack</h1>
           </div>
           <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">My Body Manual v5</p>
         </div>
@@ -496,11 +549,8 @@ export default function App() {
           <SidebarItem icon={FileText} label="건강 리포트" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
         </nav>
 
-        <div className="mt-auto pt-6 border-t border-slate-100">
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">
-            <Settings size={20} />
-            <span className="font-medium">설정</span>
-          </button>
+        <div className="mt-auto pt-6 border-t border-[var(--border-color)]">
+          <SidebarItem icon={Settings} label="설정" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
           <div className="mt-4 p-4 bg-emerald-50 rounded-2xl">
             <p className="text-xs font-bold text-emerald-800 mb-1">프리미엄 혜택</p>
             <p className="text-[10px] text-emerald-600 mb-3">AI 정밀 분석 무제한 이용</p>
@@ -515,12 +565,31 @@ export default function App() {
       <main className="flex-1 flex flex-col overflow-hidden relative">
 
         {/* Top Header */}
-        <header className="h-20 bg-white/50 backdrop-blur-md border-b border-slate-100 flex items-center justify-end px-10 sticky top-0 z-20 shrink-0">
+        <header className="h-20 bg-[var(--bg-surface)]/50 backdrop-blur-md border-b border-[var(--border-color)] flex items-center justify-end px-10 sticky top-0 z-20 shrink-0 transition-colors duration-300">
           <div className="flex items-center gap-6">
-            <button className="relative p-2 text-slate-400 hover:text-emerald-600 transition-colors">
+            <button
+              ref={bellRef}
+              onClick={() => setShowNotifPanel(prev => !prev)}
+              className="relative p-2 text-slate-400 hover:text-emerald-600 transition-colors"
+            >
               <Bell size={22} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
+              {notifStore.unreadCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-rose-500 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold text-white px-0.5">
+                  {notifStore.unreadCount > 9 ? '9+' : notifStore.unreadCount}
+                </span>
+              )}
             </button>
+            <NotificationPanel
+              open={showNotifPanel}
+              onClose={() => setShowNotifPanel(false)}
+              triggerRef={bellRef}
+              notifications={notifStore.notifications}
+              unreadCount={notifStore.unreadCount}
+              onMarkAsRead={notifStore.markAsRead}
+              onMarkAllAsRead={notifStore.markAllAsRead}
+              onRemove={notifStore.removeNotification}
+              onClearAll={notifStore.clearAll}
+            />
             {!authLoading && (
               <div className="flex items-center gap-3 pl-6 border-l border-slate-100">
                 {user ? (
@@ -891,6 +960,7 @@ export default function App() {
               const allWarnings: string[] = [];
               const allAdvice: string[] = [];
               const drugEfficacy: Record<string, string> = {};
+              let latestDoctorAnalysis = '';
 
               savedStacks.forEach(s => {
                 const drugs = s.prescriptionData?.prescriptionSummary?.drugList ?? [];
@@ -906,7 +976,18 @@ export default function App() {
 
                 // AI 분석 결과 수집
                 const warn = s.prescriptionData?.prescriptionSummary?.warnings;
-                if (warn && warn.trim()) allWarnings.push(warn.trim());
+                if (warn) {
+                  if (typeof warn === 'object' && !Array.isArray(warn) && 'analysis' in warn) {
+                    // DoctorAnalysis 형식: 종합분석 소견 + 주의사항 분리
+                    const da = warn as { analysis: string; criticalAlerts: string[] };
+                    if (da.analysis?.trim() && !latestDoctorAnalysis) latestDoctorAnalysis = da.analysis.trim();
+                    da.criticalAlerts?.forEach(a => { if (a.trim()) allWarnings.push(a.trim()); });
+                  } else if (Array.isArray(warn)) {
+                    warn.forEach(w => { if (w.trim()) allWarnings.push(w.trim()); });
+                  } else if (typeof warn === 'string' && warn.trim()) {
+                    allWarnings.push(warn.trim());
+                  }
+                }
 
                 const advice = s.prescriptionData?.lifestyleGuide?.advice;
                 if (advice && advice.trim()) allAdvice.push(advice.trim());
@@ -941,57 +1022,73 @@ export default function App() {
 
                   {/* 섹션 1: 나의 건강 한눈에 */}
                   <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[32px] p-8 text-white shadow-lg">
-                    <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-5">나의 건강 한눈에</p>
+                    <p className="text-xs font-bold opacity-70 uppercase tracking-widest mb-5">나의 건강 한눈에</p>
                     <div className="grid grid-cols-3 gap-4 text-center mb-4">
                       <div className="bg-white/15 rounded-2xl p-4">
-                        <p className="text-3xl font-bold">{savedStacks.length}</p>
-                        <p className="text-xs opacity-80 mt-1">총 분석</p>
+                        <p className="text-4xl font-bold">{savedStacks.length}</p>
+                        <p className="text-sm opacity-80 mt-1">총 분석</p>
                       </div>
                       <div className="bg-white/15 rounded-2xl p-4">
-                        <p className="text-3xl font-bold">{totalDrugTypes}</p>
-                        <p className="text-xs opacity-80 mt-1">약물 종류</p>
+                        <p className="text-4xl font-bold">{totalDrugTypes}</p>
+                        <p className="text-sm opacity-80 mt-1">약물 종류</p>
                       </div>
                       <div className="bg-white/15 rounded-2xl p-4">
-                        <p className="text-3xl font-bold">{topSymptoms.length}</p>
-                        <p className="text-xs opacity-80 mt-1">확인 증상</p>
+                        <p className="text-4xl font-bold">{topSymptoms.length}</p>
+                        <p className="text-sm opacity-80 mt-1">확인 증상</p>
                       </div>
                     </div>
-                    <p className="text-[10px] opacity-60 text-center">최근 분석: {savedStacks[0]?.date}</p>
+                    <p className="text-xs opacity-60 text-center">최근 분석: {savedStacks[0]?.date}</p>
                   </div>
 
                   {/* AI 분석 종합 요약 */}
-                  <div className="bg-white rounded-[32px] p-6 shadow-sm border border-slate-100 space-y-5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-violet-100 rounded-xl flex items-center justify-center">
-                        <Sparkles size={16} className="text-violet-600" />
+                  <div className="bg-white rounded-[32px] p-8 shadow-sm border border-slate-100 space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center">
+                        <Sparkles size={20} className="text-violet-600" />
                       </div>
-                      <h3 className="text-sm font-bold text-slate-800">AI 분석 종합 요약</h3>
+                      <h3 className="text-lg font-bold text-slate-800">AI 분석 종합 요약</h3>
                     </div>
+
+                    {/* 주치의 종합분석 소견 */}
+                    {latestDoctorAnalysis && (
+                      <div>
+                        <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-3">주치의 종합분석</p>
+                        <div className="p-5 bg-blue-50/50 rounded-xl">
+                          {latestDoctorAnalysis.split('\n\n').filter(Boolean).map((paragraph, i) => (
+                            <p key={i} className="text-sm text-slate-700 leading-relaxed mb-3 last:mb-0">
+                              {paragraph.split('\n').map((line, j) => (
+                                <span key={j}>{j > 0 && <br />}{line}</span>
+                              ))}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* 주요 약물 효능 */}
                     {topDrugSummaries.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">주요 복용 약물 분석</p>
+                        <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-3">주요 복용 약물 분석</p>
                         <div className="space-y-2">
                           {topDrugSummaries.map(d => (
-                            <div key={d.name} className="flex gap-3 p-3 bg-blue-50/50 rounded-xl">
-                              <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full h-fit shrink-0">{d.name}</span>
-                              <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">{d.efficacy}</p>
+                            <div key={d.name} className="flex gap-3 p-3 bg-blue-50/50 rounded-xl items-start">
+                              <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2.5 py-1 rounded-full h-fit shrink-0">{d.name}</span>
+                              <p className="text-sm text-slate-600 leading-relaxed line-clamp-2">{d.efficacy}</p>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
 
-                    {/* 주의사항 종합 */}
+                    {/* 주의사항 종합 (AI 주치의 기반) */}
                     {allWarnings.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-2">주의사항 종합</p>
-                        <div className="p-4 bg-rose-50/50 rounded-xl space-y-2">
-                          {allWarnings.slice(0, 3).map((w, i) => (
-                            <p key={i} className="text-[11px] text-rose-800/80 leading-relaxed flex gap-2">
+                        <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-3">주의사항 안내</p>
+                        <div className="p-5 bg-rose-50/50 rounded-xl space-y-2">
+                          {allWarnings.slice(0, 7).map((w, i) => (
+                            <p key={i} className="text-sm text-rose-800/80 leading-relaxed flex gap-2">
                               <span className="text-rose-400 shrink-0">&#9888;</span>
-                              <span className="line-clamp-2">{w}</span>
+                              <span>{w}</span>
                             </p>
                           ))}
                         </div>
@@ -1001,11 +1098,11 @@ export default function App() {
                     {/* 생활 가이드 종합 */}
                     {allAdvice.length > 0 && (
                       <div>
-                        <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">생활 관리 조언</p>
-                        <div className="p-4 bg-emerald-50/50 rounded-xl">
-                          <p className="text-[11px] text-emerald-800/80 leading-relaxed line-clamp-4">{allAdvice[allAdvice.length - 1]}</p>
+                        <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-3">생활 관리 조언</p>
+                        <div className="p-5 bg-emerald-50/50 rounded-xl">
+                          <p className="text-sm text-emerald-800/80 leading-relaxed line-clamp-4">{allAdvice[allAdvice.length - 1]}</p>
                           {allAdvice.length > 1 && (
-                            <p className="text-[9px] text-emerald-400 mt-2">외 {allAdvice.length - 1}건의 분석 결과 포함</p>
+                            <p className="text-xs text-emerald-400 mt-2">외 {allAdvice.length - 1}건의 분석 결과 포함</p>
                           )}
                         </div>
                       </div>
@@ -1013,9 +1110,9 @@ export default function App() {
 
                     {/* 추천 식재료 한줄 요약 */}
                     {uniqueFoods.length > 0 && (
-                      <div className="flex items-start gap-2 p-3 bg-amber-50/50 rounded-xl">
-                        <span className="text-sm shrink-0">🌿</span>
-                        <p className="text-[11px] text-amber-800/80 leading-relaxed">
+                      <div className="flex items-start gap-2 p-4 bg-amber-50/50 rounded-xl">
+                        <span className="text-base shrink-0">🌿</span>
+                        <p className="text-sm text-amber-800/80 leading-relaxed">
                           분석된 처방 기반 추천 식재료: <strong>{uniqueFoods.slice(0, 5).map(f => f.name).join(', ')}</strong>
                           {uniqueFoods.length > 5 && ` 외 ${uniqueFoods.length - 5}종`}
                         </p>
@@ -1030,20 +1127,20 @@ export default function App() {
                     {topDrugs.length > 0 && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <span className="bg-blue-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">TOP</span>
-                          <h3 className="text-blue-500 text-[10px] font-bold uppercase tracking-widest">자주 처방받은 약물</h3>
+                          <span className="bg-blue-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">TOP</span>
+                          <h3 className="text-blue-500 text-xs font-bold uppercase tracking-widest">자주 처방받은 약물</h3>
                         </div>
                         <div className="bg-white rounded-[24px] p-5 shadow-sm border border-blue-50 space-y-3">
                           {topDrugs.map(([name, count], i) => (
                             <div key={name} className="flex items-center gap-3">
-                              <span className="w-6 h-6 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                              <span className="w-7 h-7 bg-blue-50 text-blue-600 rounded-full text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                               <div className="flex-1">
                                 <div className="flex justify-between items-center mb-1">
-                                  <p className="text-xs font-bold text-slate-700 break-keep">{name}</p>
-                                  <p className="text-[10px] text-blue-400 font-bold">{count}회</p>
+                                  <p className="text-sm font-bold text-slate-700 break-keep">{name}</p>
+                                  <p className="text-xs text-blue-400 font-bold">{count}회</p>
                                 </div>
-                                <div className="w-full bg-blue-50 rounded-full h-1.5">
-                                  <div className="bg-blue-400 h-1.5 rounded-full transition-all" style={{ width: `${(count / savedStacks.length) * 100}%` }} />
+                                <div className="w-full bg-blue-50 rounded-full h-2">
+                                  <div className="bg-blue-400 h-2 rounded-full transition-all" style={{ width: `${(count / savedStacks.length) * 100}%` }} />
                                 </div>
                               </div>
                             </div>
@@ -1056,15 +1153,15 @@ export default function App() {
                     {topSymptoms.length > 0 && (
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <span className="bg-purple-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">증상</span>
-                          <h3 className="text-purple-500 text-[10px] font-bold uppercase tracking-widest">자주 나타나는 증상</h3>
+                          <span className="bg-purple-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">증상</span>
+                          <h3 className="text-purple-500 text-xs font-bold uppercase tracking-widest">자주 나타나는 증상</h3>
                         </div>
                         <div className="bg-white rounded-[24px] p-5 shadow-sm border border-purple-50">
                           <div className="flex flex-wrap gap-2">
                             {topSymptoms.map(([token, count]) => (
                               <span key={token} className="px-3 py-1.5 rounded-xl font-bold border"
-                                style={{ fontSize: `${Math.min(13, 10 + count)}px`, background: count > 1 ? '#f3f0ff' : '#fafaf9', color: count > 1 ? '#7c3aed' : '#78716c', borderColor: count > 1 ? '#ddd6fe' : '#e7e5e4' }}>
-                                {token} {count > 1 && <span className="opacity-60 text-[9px]">&times;{count}</span>}
+                                style={{ fontSize: `${Math.min(16, 12 + count)}px`, background: count > 1 ? '#f3f0ff' : '#fafaf9', color: count > 1 ? '#7c3aed' : '#78716c', borderColor: count > 1 ? '#ddd6fe' : '#e7e5e4' }}>
+                                {token} {count > 1 && <span className="opacity-60 text-[11px]">&times;{count}</span>}
                               </span>
                             ))}
                           </div>
@@ -1076,8 +1173,8 @@ export default function App() {
                   {/* 섹션 3: 복용 이력 타임라인 */}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <span className="bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">이력</span>
-                      <h3 className="text-emerald-500 text-[10px] font-bold uppercase tracking-widest">복용 이력 타임라인</h3>
+                      <span className="bg-emerald-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">이력</span>
+                      <h3 className="text-emerald-500 text-xs font-bold uppercase tracking-widest">복용 이력 타임라인</h3>
                     </div>
                     <div className="relative pl-4">
                       <div className="absolute left-4 top-0 bottom-0 w-px bg-emerald-100" />
@@ -1088,13 +1185,13 @@ export default function App() {
                             <div key={s.id} className="relative pl-6">
                               <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-emerald-400 bg-white" />
                               <div className="bg-white rounded-[20px] p-4 shadow-sm border border-emerald-50">
-                                <p className="text-[10px] text-emerald-400 font-bold mb-1">{s.date}</p>
-                                <div className="flex flex-wrap gap-1">
+                                <p className="text-xs text-emerald-400 font-bold mb-1">{s.date}</p>
+                                <div className="flex flex-wrap gap-1.5">
                                   {drugs.slice(0, 4).map((d, j) => (
-                                    <span key={j} className="text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold border border-emerald-100">{d}</span>
+                                    <span key={j} className="text-xs px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg font-bold border border-emerald-100">{d}</span>
                                   ))}
                                   {drugs.length > 4 && (
-                                    <span className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-400 rounded-lg">+{drugs.length - 4}개</span>
+                                    <span className="text-xs px-2.5 py-1 bg-slate-50 text-slate-400 rounded-lg">+{drugs.length - 4}개</span>
                                   )}
                                 </div>
                               </div>
@@ -1109,27 +1206,33 @@ export default function App() {
                   {uniqueFoods.length > 0 && (
                     <div className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <span className="bg-amber-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">식재료</span>
-                        <h3 className="text-amber-700 text-[10px] font-bold uppercase tracking-widest">내 몸에 자주 필요한 식재료</h3>
+                        <span className="bg-amber-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full">식재료</span>
+                        <h3 className="text-amber-700 text-xs font-bold uppercase tracking-widest">내 몸에 자주 필요한 식재료</h3>
                       </div>
                       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                         {uniqueFoods.slice(0, 6).map((f, i) => (
-                          <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-amber-50">
-                            <p className="text-lg mb-1">🌿</p>
-                            <p className="text-xs font-bold text-amber-900 break-keep">{f.name}</p>
-                            <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">{f.reason}</p>
+                          <div key={i} className="bg-white rounded-[20px] p-5 shadow-sm border border-amber-50">
+                            <p className="text-xl mb-1">🌿</p>
+                            <p className="text-sm font-bold text-amber-900 break-keep">{f.name}</p>
+                            <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">{f.reason}</p>
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  <p className="text-[10px] text-slate-400 text-center px-6 leading-relaxed opacity-60">
+                  <p className="text-xs text-slate-400 text-center px-6 leading-relaxed opacity-60">
                     ※ 리포트는 기기에 저장된 분석 이력을 기반으로 합니다.
                   </p>
                 </motion.div>
               );
             })()}
+
+            {activeTab === 'settings' && (
+              <motion.div key="settings" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+                <SettingsPage />
+              </motion.div>
+            )}
 
           </AnimatePresence>
         </div>
@@ -1182,15 +1285,34 @@ export default function App() {
                 )}
               </div>
 
+              {/* Medication Reminder Setup Panel */}
+              {showMedSetup && modalStack.type === 'prescription' && modalStack.prescriptionData && (
+                <MedicationReminderSetup
+                  drugList={modalStack.prescriptionData.prescriptionSummary.drugList}
+                  onClose={() => setShowMedSetup(false)}
+                />
+              )}
+
               {/* Modal Footer */}
               <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-between items-center shrink-0">
                 <p className="text-[10px] text-slate-400 max-w-md">
                   ※ 이 분석은 AI 기술을 기반으로 하며, 참고용으로만 사용하시기 바랍니다.
                   정확한 의학적 판단은 반드시 전문의와 상담하세요.
                 </p>
-                <button onClick={() => setShowAnalysisModal(false)} className="px-10 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-900 transition-colors shadow-lg shadow-slate-200">
-                  확인 완료
-                </button>
+                <div className="flex gap-3">
+                  {modalStack.type === 'prescription' && modalStack.prescriptionData && !showMedSetup && (
+                    <button
+                      onClick={() => setShowMedSetup(true)}
+                      className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-100"
+                    >
+                      <Bell size={16} />
+                      복약 알림 설정
+                    </button>
+                  )}
+                  <button onClick={() => { setShowAnalysisModal(false); setShowMedSetup(false); }} className="px-10 py-3 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-900 transition-colors shadow-lg shadow-slate-200">
+                    확인 완료
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -1266,6 +1388,9 @@ export default function App() {
           </button>
         </div>
       )}
+
+      {/* Global Toast */}
+      <Toast />
     </div>
   );
 }

@@ -4,17 +4,35 @@ import { GoogleGenAI, Modality } from '@google/genai';
 import { supabase, BACKEND_URL } from './services/supabase';
 import { decode, decodeAudioData, blobToBase64 } from './utils/helpers';
 import type { AnalysisData, SavedStack } from './types';
+import type { MedicationSchedule } from './types/settings';
+import SettingsPage from './components/settings/SettingsPage';
+import Toast from './components/settings/Toast';
+import { useSettings } from './contexts/SettingsContext';
+import { useNotificationScheduler } from './hooks/useNotificationScheduler';
+import { sendBrowserNotification } from './services/notificationService';
+import MedicationReminderSetup from './components/analysis/MedicationReminderSetup';
+import NotificationPanel from './components/notifications/NotificationPanel';
+import { useNotificationStore } from './hooks/useNotificationStore';
 
 // --- App Component ---
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState<'home' | 'stack' | 'map' | 'report'>('home');
+  const { settings, showToast, updateNotification } = useSettings();
+  const notifStore = useNotificationStore();
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const bellRef = useRef<HTMLButtonElement>(null);
+  useNotificationScheduler({
+    onNotification: (item) => notifStore.addNotification(item),
+  });
+
+  const [activeTab, setActiveTab] = useState<'home' | 'stack' | 'map' | 'report' | 'settings'>('home');
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [recommendedVideos, setRecommendedVideos] = useState<{title: string; uri: string}[]>([]);
   const [dietRecommendation, setDietRecommendation] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [showMedSetup, setShowMedSetup] = useState(false);
   const [savedStacks, setSavedStacks] = useState<SavedStack[]>([]);
   
   const [loadingVideos, setLoadingVideos] = useState(false);
@@ -280,6 +298,34 @@ const App = () => {
             saveStackToDB(newEntry);
             setShowResult(true);
             setActiveTab('home');
+
+            // Analysis complete notification
+            const drugList = data.prescriptionSummary.drugList;
+            const title = drugList.length > 0 ? drugList.join(', ') : '처방전 분석';
+            if (settings.notification.analysisComplete) {
+              sendBrowserNotification('분석 완료', `${title} 분석이 완료되었습니다`);
+              showToast('✅ 처방전 분석이 완료되었습니다');
+              notifStore.addNotification({ type: 'analysis', title: '분석 완료', body: `${title} 분석이 완료되었습니다` });
+            }
+
+            // Auto-extract medications for reminder schedules
+            if (settings.notification.medicationReminder && drugList.length > 0) {
+              const existingNames = settings.notification.medicationSchedules.map(s => s.drugName);
+              const newDrugs = drugList.filter(d => !existingNames.includes(d));
+              if (newDrugs.length > 0) {
+                const newSchedules: MedicationSchedule[] = newDrugs.map(drugName => ({
+                  id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
+                  drugName,
+                  times: ['08:00', '12:00', '18:00'],
+                  daysOfWeek: [],
+                  enabled: false,
+                }));
+                updateNotification({
+                  medicationSchedules: [...settings.notification.medicationSchedules, ...newSchedules],
+                });
+                showToast(`💊 ${newDrugs.length}개 약물이 복약 알림에 추가되었습니다 (설정에서 확인)`);
+              }
+            }
           } else if (event.type === 'error') {
             throw new Error(event.message ?? '분석 중 오류가 발생했습니다.');
           }
@@ -498,6 +544,19 @@ const App = () => {
           <p className="text-[10px] text-emerald-400 font-medium tracking-wider">따뜻한 내 몸 설명서</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Bell notification icon */}
+          <button
+            ref={bellRef}
+            onClick={() => setShowNotifPanel(prev => !prev)}
+            className="relative p-1.5 text-slate-400 hover:text-emerald-600 active:scale-90 transition-all"
+          >
+            <span className="text-lg">🔔</span>
+            {notifStore.unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-rose-500 rounded-full flex items-center justify-center text-[9px] font-bold text-white px-0.5 border border-white">
+                {notifStore.unreadCount > 9 ? '9+' : notifStore.unreadCount}
+              </span>
+            )}
+          </button>
           {!authLoading && (
             user ? (
               <button onClick={() => supabase.auth.signOut()} className="flex items-center gap-1.5">
@@ -517,16 +576,24 @@ const App = () => {
               </button>
             )
           )}
-          {/* PC 대시보드 링크 */}
-          <a href="https://health-stack-inij.vercel.app" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 hover:bg-slate-100 rounded-full px-2 py-1 border border-slate-100 transition-colors">
-            <span>🖥️</span> PC
-          </a>
           {showResult && (
             <button onClick={() => setShowResult(false)} className="text-amber-600 text-xs font-bold bg-amber-50 px-3 py-1.5 rounded-full hover:bg-amber-100">닫기</button>
           )}
         </div>
       </header>
+
+      {/* Notification Panel (portal) */}
+      <NotificationPanel
+        open={showNotifPanel}
+        onClose={() => setShowNotifPanel(false)}
+        triggerRef={bellRef}
+        notifications={notifStore.notifications}
+        unreadCount={notifStore.unreadCount}
+        onMarkAsRead={notifStore.markAsRead}
+        onMarkAllAsRead={notifStore.markAllAsRead}
+        onRemove={notifStore.removeNotification}
+        onClearAll={notifStore.clearAll}
+      />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-4 pb-32">
@@ -619,7 +686,7 @@ const App = () => {
                       <p className="text-[10px] opacity-80">{analysisData.prescriptionSummary.drugList.length}종 분석 완료</p>
                     </div>
                   </div>
-                  <button onClick={() => speakSummary(analysisData.prescriptionSummary.warnings)} className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-xl hover:bg-white/30 transition-colors">🔊</button>
+                  <button onClick={() => { const w = analysisData.prescriptionSummary.warnings; speakSummary(Array.isArray(w) ? w.join('. ') : w); }} className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-xl hover:bg-white/30 transition-colors">🔊</button>
                 </div>
                 <div className="p-5 space-y-4">
                   <div className="flex flex-wrap gap-2">
@@ -627,9 +694,17 @@ const App = () => {
                       <span key={i} className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100">{drug}</span>
                     ))}
                   </div>
-                  <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 flex gap-3">
-                    <span className="text-rose-500 font-bold text-lg">💡</span>
-                    <p className="text-xs text-rose-800 leading-normal font-medium">{analysisData.prescriptionSummary.warnings}</p>
+                  <div className="p-4 bg-rose-50 rounded-2xl border border-rose-100 space-y-2">
+                    <p className="text-xs font-bold text-rose-700 flex items-center gap-1">💊 주의사항 안내</p>
+                    {(Array.isArray(analysisData.prescriptionSummary.warnings)
+                      ? analysisData.prescriptionSummary.warnings
+                      : analysisData.prescriptionSummary.warnings.split(' | ').filter(Boolean)
+                    ).map((w: string, i: number) => (
+                      <p key={i} className="text-xs text-rose-800 leading-normal font-medium flex gap-2">
+                        <span className="text-rose-400 shrink-0">⚠️</span>
+                        <span>{w}</span>
+                      </p>
+                    ))}
                   </div>
                 </div>
               </section>
@@ -923,6 +998,26 @@ const App = () => {
               )}
             </div>
 
+            {/* 복약 알림 설정 */}
+            {!showMedSetup && analysisData.prescriptionSummary?.drugList?.length > 0 && (
+              <div className="flex justify-center mt-4">
+                <button
+                  onClick={() => setShowMedSetup(true)}
+                  className="px-6 py-3 bg-emerald-600 text-white rounded-2xl text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-100"
+                >
+                  🔔 복약 알림 설정
+                </button>
+              </div>
+            )}
+            {showMedSetup && analysisData.prescriptionSummary?.drugList && (
+              <div className="mt-4 rounded-3xl overflow-hidden border border-slate-200">
+                <MedicationReminderSetup
+                  drugList={analysisData.prescriptionSummary.drugList}
+                  onClose={() => setShowMedSetup(false)}
+                />
+              </div>
+            )}
+
             <p className="text-[10px] text-slate-400 text-center px-6 leading-relaxed opacity-60">
               ※ 제공된 정보는 참고 자료입니다. 정확한 진단과 치료는 의사·약사와 상담하세요.
             </p>
@@ -1071,6 +1166,12 @@ const App = () => {
           </div>
         )}
 
+        {activeTab === 'settings' && (
+          <div className="px-4 py-6 pb-28 animate-in">
+            <SettingsPage />
+          </div>
+        )}
+
         {activeTab === 'report' && (() => {
           // --- 집계 연산 ---
           const drugFreq: Record<string, number> = {};
@@ -1096,9 +1197,20 @@ const App = () => {
           const allWarnings: string[] = [];
           const allAdvice: string[] = [];
           const drugEfficacy: Record<string, string> = {};
+          let latestDoctorAnalysis = '';
           savedStacks.forEach(s => {
             const warn = s.data?.prescriptionSummary?.warnings;
-            if (warn && warn.trim()) allWarnings.push(warn.trim());
+            if (warn) {
+              if (typeof warn === 'object' && !Array.isArray(warn) && 'analysis' in warn) {
+                const da = warn as { analysis: string; criticalAlerts: string[] };
+                if (da.analysis?.trim() && !latestDoctorAnalysis) latestDoctorAnalysis = da.analysis.trim();
+                da.criticalAlerts?.forEach(a => { if (a.trim()) allWarnings.push(a.trim()); });
+              } else if (Array.isArray(warn)) {
+                warn.forEach(w => { if (w.trim()) allWarnings.push(w.trim()); });
+              } else if (typeof warn === 'string' && warn.trim()) {
+                allWarnings.push(warn.trim());
+              }
+            }
             const advice = s.data?.lifestyleGuide?.advice;
             if (advice && advice.trim()) allAdvice.push(advice.trim());
             (s.data?.drugDetails ?? []).forEach(d => {
@@ -1116,59 +1228,75 @@ const App = () => {
               <button onClick={() => setActiveTab('home')} className="mt-4 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full">홈에서 시작하기</button>
             </div>
           ) : (
-            <div className="space-y-6 animate-in pb-10">
+            <div className="space-y-6 animate-in pb-10 font-gaegu">
 
               {/* ── 섹션 1: 나의 건강 한눈에 ── */}
               <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[32px] p-6 text-white shadow-lg">
-                <p className="text-[10px] font-bold opacity-70 uppercase tracking-widest mb-4">나의 건강 한눈에</p>
+                <p className="text-sm font-bold opacity-70 uppercase tracking-widest mb-4">나의 건강 한눈에</p>
                 <div className="grid grid-cols-3 gap-2 text-center mb-4">
-                  <div className="bg-white/15 rounded-2xl p-3">
-                    <p className="text-2xl font-bold">{savedStacks.length}</p>
-                    <p className="text-[10px] opacity-80 mt-0.5">총 분석</p>
+                  <div className="bg-white/15 rounded-2xl p-4">
+                    <p className="text-3xl font-bold">{savedStacks.length}</p>
+                    <p className="text-sm opacity-80 mt-1">총 분석</p>
                   </div>
-                  <div className="bg-white/15 rounded-2xl p-3">
-                    <p className="text-2xl font-bold">{totalDrugTypes}</p>
-                    <p className="text-[10px] opacity-80 mt-0.5">약물 종류</p>
+                  <div className="bg-white/15 rounded-2xl p-4">
+                    <p className="text-3xl font-bold">{totalDrugTypes}</p>
+                    <p className="text-sm opacity-80 mt-1">약물 종류</p>
                   </div>
-                  <div className="bg-white/15 rounded-2xl p-3">
-                    <p className="text-2xl font-bold">{topSymptoms.length}</p>
-                    <p className="text-[10px] opacity-80 mt-0.5">확인 증상</p>
+                  <div className="bg-white/15 rounded-2xl p-4">
+                    <p className="text-3xl font-bold">{topSymptoms.length}</p>
+                    <p className="text-sm opacity-80 mt-1">확인 증상</p>
                   </div>
                 </div>
-                <p className="text-[10px] opacity-60 text-center">최근 분석: {savedStacks[0]?.date}</p>
+                <p className="text-sm opacity-60 text-center">최근 분석: {savedStacks[0]?.date}</p>
               </div>
 
               {/* ── AI 분석 종합 요약 ── */}
-              <div className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 space-y-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-violet-100 rounded-lg flex items-center justify-center text-sm">✨</div>
-                  <h3 className="text-xs font-bold text-slate-800">AI 분석 종합 요약</h3>
+              <div className="bg-white rounded-[24px] p-6 shadow-sm border border-slate-100 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-violet-100 rounded-xl flex items-center justify-center text-xl">✨</div>
+                  <h3 className="text-xl font-bold text-slate-800">AI 분석 종합 요약</h3>
                 </div>
+
+                {/* 주치의 종합분석 소견 */}
+                {latestDoctorAnalysis && (
+                  <div>
+                    <p className="text-base font-bold text-blue-700 mb-3">🩺 주치의 종합분석</p>
+                    <div className="p-4 bg-blue-50/50 rounded-xl">
+                      {latestDoctorAnalysis.split('\n\n').filter(Boolean).map((paragraph, i) => (
+                        <p key={i} className="text-lg text-slate-700 leading-relaxed mb-3 last:mb-0">
+                          {paragraph.split('\n').map((line, j) => (
+                            <span key={j}>{j > 0 && <br />}{line}</span>
+                          ))}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* 주요 약물 효능 */}
                 {topDrugSummaries.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">주요 복용 약물 분석</p>
-                    <div className="space-y-2">
+                    <p className="text-base font-bold text-blue-600 mb-3">📋 주요 복용 약물 분석</p>
+                    <div className="space-y-3">
                       {topDrugSummaries.map(d => (
-                        <div key={d.name} className="flex gap-2 p-3 bg-blue-50/50 rounded-xl">
-                          <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full h-fit shrink-0">{d.name}</span>
-                          <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">{d.efficacy}</p>
+                        <div key={d.name} className="flex gap-3 p-4 bg-blue-50/50 rounded-xl">
+                          <span className="text-base font-bold text-blue-600 bg-blue-100 px-3 py-1 rounded-full h-fit shrink-0">{d.name}</span>
+                          <p className="text-lg text-slate-600 leading-relaxed">{d.efficacy}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* 주의사항 종합 */}
+                {/* 주의사항 안내 */}
                 {allWarnings.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-2">주의사항 종합</p>
-                    <div className="p-3 bg-rose-50/50 rounded-xl space-y-1.5">
-                      {allWarnings.slice(0, 3).map((w, i) => (
-                        <p key={i} className="text-[11px] text-rose-800/80 leading-relaxed flex gap-2">
-                          <span className="text-rose-400 shrink-0">⚠</span>
-                          <span className="line-clamp-2">{w}</span>
+                    <p className="text-base font-bold text-rose-600 mb-3">⚠️ 주의사항 안내</p>
+                    <div className="p-4 bg-rose-50/50 rounded-xl space-y-2.5">
+                      {allWarnings.slice(0, 7).map((w, i) => (
+                        <p key={i} className="text-lg text-rose-800/80 leading-relaxed flex gap-2">
+                          <span className="text-rose-400 shrink-0 mt-0.5">•</span>
+                          <span>{w}</span>
                         </p>
                       ))}
                     </div>
@@ -1178,11 +1306,11 @@ const App = () => {
                 {/* 생활 관리 조언 */}
                 {allAdvice.length > 0 && (
                   <div>
-                    <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">생활 관리 조언</p>
-                    <div className="p-3 bg-emerald-50/50 rounded-xl">
-                      <p className="text-[11px] text-emerald-800/80 leading-relaxed line-clamp-4">{allAdvice[allAdvice.length - 1]}</p>
+                    <p className="text-base font-bold text-emerald-600 mb-3">💚 생활 관리 조언</p>
+                    <div className="p-4 bg-emerald-50/50 rounded-xl">
+                      <p className="text-lg text-emerald-800/80 leading-relaxed">{allAdvice[allAdvice.length - 1]}</p>
                       {allAdvice.length > 1 && (
-                        <p className="text-[9px] text-emerald-400 mt-1.5">외 {allAdvice.length - 1}건의 분석 결과 포함</p>
+                        <p className="text-base text-emerald-400 mt-2">외 {allAdvice.length - 1}건의 분석 결과 포함</p>
                       )}
                     </div>
                   </div>
@@ -1190,10 +1318,10 @@ const App = () => {
 
                 {/* 추천 식재료 한줄 요약 */}
                 {uniqueFoods.length > 0 && (
-                  <div className="flex items-start gap-2 p-3 bg-amber-50/50 rounded-xl">
-                    <span className="text-sm shrink-0">🌿</span>
-                    <p className="text-[11px] text-amber-800/80 leading-relaxed">
-                      분석된 처방 기반 추천 식재료: <strong>{uniqueFoods.slice(0, 5).map(f => f.name).join(', ')}</strong>
+                  <div className="flex items-start gap-3 p-4 bg-amber-50/50 rounded-xl">
+                    <span className="text-xl shrink-0">🌿</span>
+                    <p className="text-lg text-amber-800/80 leading-relaxed">
+                      추천 식재료: <strong>{uniqueFoods.slice(0, 5).map(f => f.name).join(', ')}</strong>
                       {uniqueFoods.length > 5 && ` 외 ${uniqueFoods.length - 5}종`}
                     </p>
                   </div>
@@ -1203,21 +1331,21 @@ const App = () => {
               {/* ── 섹션 2: 자주 처방받은 약물 ── */}
               {topDrugs.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">TOP</span>
-                    <h3 className="text-blue-400 text-[10px] font-bold uppercase tracking-widest">자주 처방받은 약물</h3>
-                  </div>
-                  <div className="bg-white rounded-[24px] p-4 shadow-sm border border-blue-50 space-y-2">
+                  <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                    <span className="bg-blue-600 text-white text-base font-bold px-3 py-1 rounded-full">TOP</span>
+                    자주 처방받은 약물
+                  </h3>
+                  <div className="bg-white rounded-[24px] p-5 shadow-sm border border-blue-50 space-y-4">
                     {topDrugs.map(([name, count], i) => (
                       <div key={name} className="flex items-center gap-3">
-                        <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                        <span className="w-9 h-9 bg-blue-50 text-blue-600 rounded-full text-base font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
                         <div className="flex-1">
-                          <div className="flex justify-between items-center mb-1">
-                            <p className="text-xs font-bold text-slate-700 break-keep">{name}</p>
-                            <p className="text-[10px] text-blue-400 font-bold">{count}회</p>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <p className="text-lg font-bold text-slate-700 break-keep">{name}</p>
+                            <p className="text-base text-blue-500 font-bold">{count}회</p>
                           </div>
-                          <div className="w-full bg-blue-50 rounded-full h-1.5">
-                            <div className="bg-blue-400 h-1.5 rounded-full" style={{ width: `${(count / savedStacks.length) * 100}%` }} />
+                          <div className="w-full bg-blue-50 rounded-full h-2.5">
+                            <div className="bg-blue-400 h-2.5 rounded-full" style={{ width: `${(count / savedStacks.length) * 100}%` }} />
                           </div>
                         </div>
                       </div>
@@ -1228,24 +1356,24 @@ const App = () => {
 
               {/* ── 섹션 3: 복용 이력 타임라인 ── */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">이력</span>
-                  <h3 className="text-emerald-400 text-[10px] font-bold uppercase tracking-widest">복용 이력 타임라인</h3>
-                </div>
+                <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                  <span className="bg-emerald-600 text-white text-base font-bold px-3 py-1 rounded-full">이력</span>
+                  복용 이력 타임라인
+                </h3>
                 <div className="relative pl-4">
-                  <div className="absolute left-4 top-0 bottom-0 w-px bg-emerald-100" />
+                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-emerald-200" />
                   <div className="space-y-4">
                     {savedStacks.map((s, i) => (
-                      <div key={s.id} className="relative pl-6">
-                        <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 border-emerald-400 bg-white" />
-                        <div className="bg-white rounded-[20px] p-4 shadow-sm border border-emerald-50">
-                          <p className="text-[10px] text-emerald-400 font-bold mb-1">{s.date}</p>
-                          <div className="flex flex-wrap gap-1">
+                      <div key={s.id} className="relative pl-7">
+                        <div className="absolute left-0 top-2.5 w-4 h-4 rounded-full border-2 border-emerald-400 bg-white" />
+                        <div className="bg-white rounded-[20px] p-5 shadow-sm border border-emerald-50">
+                          <p className="text-base text-emerald-500 font-bold mb-2">{s.date}</p>
+                          <div className="flex flex-wrap gap-2">
                             {s.drugList.slice(0, 4).map((d, j) => (
-                              <span key={j} className="text-[10px] px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold border border-emerald-100">{d}</span>
+                              <span key={j} className="text-base px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg font-bold border border-emerald-100">{d}</span>
                             ))}
                             {s.drugList.length > 4 && (
-                              <span className="text-[10px] px-2 py-0.5 bg-slate-50 text-slate-400 rounded-lg">+{s.drugList.length - 4}개</span>
+                              <span className="text-base px-3 py-1.5 bg-slate-50 text-slate-400 rounded-lg">+{s.drugList.length - 4}개</span>
                             )}
                           </div>
                         </div>
@@ -1258,16 +1386,16 @@ const App = () => {
               {/* ── 섹션 4: 자주 나타나는 증상 ── */}
               {topSymptoms.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">증상</span>
-                    <h3 className="text-purple-400 text-[10px] font-bold uppercase tracking-widest">자주 나타나는 증상</h3>
-                  </div>
-                  <div className="bg-white rounded-[24px] p-4 shadow-sm border border-purple-50">
-                    <div className="flex flex-wrap gap-2">
+                  <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                    <span className="bg-purple-600 text-white text-base font-bold px-3 py-1 rounded-full">증상</span>
+                    자주 나타나는 증상
+                  </h3>
+                  <div className="bg-white rounded-[24px] p-5 shadow-sm border border-purple-50">
+                    <div className="flex flex-wrap gap-2.5">
                       {topSymptoms.map(([token, count]) => (
-                        <span key={token} className="px-3 py-1.5 rounded-xl text-[11px] font-bold border"
-                          style={{ fontSize: `${Math.min(13, 10 + count)}px`, background: count > 1 ? '#f3f0ff' : '#fafaf9', color: count > 1 ? '#7c3aed' : '#78716c', borderColor: count > 1 ? '#ddd6fe' : '#e7e5e4' }}>
-                          {token} {count > 1 && <span className="opacity-60 text-[9px]">×{count}</span>}
+                        <span key={token} className="px-4 py-2.5 rounded-xl font-bold border"
+                          style={{ fontSize: `${Math.min(22, 16 + count * 2)}px`, background: count > 1 ? '#f3f0ff' : '#fafaf9', color: count > 1 ? '#7c3aed' : '#78716c', borderColor: count > 1 ? '#ddd6fe' : '#e7e5e4' }}>
+                          {token} {count > 1 && <span className="opacity-60" style={{ fontSize: '14px' }}>×{count}</span>}
                         </span>
                       ))}
                     </div>
@@ -1278,16 +1406,16 @@ const App = () => {
               {/* ── 섹션 5: 동의보감 식재료 모음 ── */}
               {uniqueFoods.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">식재료</span>
-                    <h3 className="text-amber-700 text-[10px] font-bold uppercase tracking-widest">내 몸에 자주 필요한 식재료</h3>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+                  <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                    <span className="bg-amber-500 text-white text-base font-bold px-3 py-1 rounded-full">식재료</span>
+                    내 몸에 자주 필요한 식재료
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
                     {uniqueFoods.slice(0, 6).map((f, i) => (
-                      <div key={i} className="bg-white rounded-[20px] p-4 shadow-sm border border-amber-50">
-                        <p className="text-lg mb-1">🌿</p>
-                        <p className="text-xs font-bold text-amber-900 break-keep">{f.name}</p>
-                        <p className="text-[10px] text-slate-400 mt-1 leading-tight line-clamp-2">{f.reason}</p>
+                      <div key={i} className="bg-white rounded-[20px] p-5 shadow-sm border border-amber-50">
+                        <p className="text-2xl mb-1">🌿</p>
+                        <p className="text-lg font-bold text-amber-900 break-keep">{f.name}</p>
+                        <p className="text-base text-slate-400 mt-1 leading-snug line-clamp-2">{f.reason}</p>
                       </div>
                     ))}
                   </div>
@@ -1297,22 +1425,22 @@ const App = () => {
               {/* ── 섹션 6: AI 레시피 아카이브 ── */}
               {stacksWithDiet.length > 0 && (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">레시피</span>
-                    <h3 className="text-rose-400 text-[10px] font-bold uppercase tracking-widest">AI 레시피 아카이브</h3>
-                  </div>
+                  <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+                    <span className="bg-rose-500 text-white text-base font-bold px-3 py-1 rounded-full">레시피</span>
+                    AI 레시피 아카이브
+                  </h3>
                   <div className="space-y-3">
                     {stacksWithDiet.map((s, i) => (
-                      <div key={s.id} className="bg-white rounded-[24px] p-4 shadow-sm border border-rose-50">
-                        <p className="text-[10px] text-rose-400 font-bold mb-2">{s.date}</p>
-                        <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-3">{s.dietPlan}</p>
+                      <div key={s.id} className="bg-white rounded-[24px] p-5 shadow-sm border border-rose-50">
+                        <p className="text-base text-rose-400 font-bold mb-2">{s.date}</p>
+                        <p className="text-lg text-slate-600 leading-relaxed line-clamp-3">{s.dietPlan}</p>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              <p className="text-[10px] text-slate-400 text-center px-6 leading-relaxed opacity-60">
+              <p className="text-base text-slate-400 text-center px-6 leading-relaxed opacity-60">
                 ※ 리포트는 기기에 저장된 분석 이력을 기반으로 합니다.
               </p>
             </div>
@@ -1328,8 +1456,9 @@ const App = () => {
         <button onClick={() => { setActiveTab('stack'); setShowResult(false); }} className={`flex flex-col items-center gap-1 ${activeTab === 'stack' && !showResult ? 'text-emerald-600 font-bold scale-110' : 'text-slate-300'}`}>
           <span className="text-xl">📋</span><span className="text-[10px]">내 스택</span>
         </button>
-        <button onClick={() => setActiveTab('map')} className={`flex flex-col items-center gap-1 ${activeTab === 'map' ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}><span className="text-xl">📍</span><span className="text-[10px]">동네 약국</span></button>
-        <button onClick={() => setActiveTab('report')} className={`flex flex-col items-center gap-1 ${activeTab === 'report' ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}><span className="text-xl">📊</span><span className="text-[10px]">건강 리포트</span></button>
+        <button onClick={() => { setActiveTab('map'); setShowResult(false); }} className={`flex flex-col items-center gap-1 ${activeTab === 'map' ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}><span className="text-xl">📍</span><span className="text-[10px]">동네 약국</span></button>
+        <button onClick={() => { setActiveTab('report'); setShowResult(false); }} className={`flex flex-col items-center gap-1 ${activeTab === 'report' ? 'text-emerald-600 font-bold' : 'text-slate-300'}`}><span className="text-xl">📊</span><span className="text-[10px]">건강 리포트</span></button>
+        <button onClick={() => { setActiveTab('settings'); setShowResult(false); }} className={`flex flex-col items-center gap-1 ${activeTab === 'settings' ? 'text-emerald-600 font-bold scale-110' : 'text-slate-300'}`}><span className="text-xl">⚙️</span><span className="text-[10px]">설정</span></button>
       </nav>
 
       {/* Analysis Overlay */}
@@ -1369,6 +1498,9 @@ const App = () => {
           </div>
         </div>
       )}
+
+      {/* Global Toast */}
+      <Toast />
     </div>
   );
 };
